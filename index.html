@@ -452,7 +452,26 @@ function calcBB(d,p=20){const sm=sma(d,p);return sm.map((m,i)=>{if(m==null)retur
 function calcATR(h,l,c,p=14){const tr=c.map((v,i)=>i===0?h[i]-l[i]:Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1])));if(tr.length<p)return tr.reduce((a,b)=>a+b)/tr.length;let a=tr.slice(0,p).reduce((x,y)=>x+y)/p;for(let i=p+1;i<tr.length;i++)a=(a*(p-1)+tr[i])/p;return a}
 function stochRSI(rs,p=14){return rs.map((v,i)=>{if(v==null||i<p)return null;const sl=rs.slice(i-p+1,i+1).filter(x=>x!=null);if(sl.length<p)return null;const mn=Math.min(...sl),mx=Math.max(...sl);return mx===mn?0:(v-mn)/(mx-mn)})}
 function computeInd(candles){const c=candles.map(x=>x.close),h=candles.map(x=>x.high),l=candles.map(x=>x.low);const n=c.length-1;const e50=ema(c,50),e200=ema(c,200),s20=sma(c,20);const rs=calcRSI(c),mc=calcMACD(c),bo=calcBB(c),at=calcATR(h,l,c),sr=stochRSI(rs);return{close:c[n],open:c[0],ema50:e50[n],ema200:e200[n],sma20:s20[n],rsi:rs[n],macd:mc,bb:bo[n],atr:at,stochRsi:sr[n],highs:h,lows:l,closes:c}}
-function bias(ind){if(!ind||!ind.ema50||!ind.ema200)return'Neutral';let b=0,br=0;if(ind.ema50>ind.ema200)b++;else br++;if(ind.close>ind.sma20)b++;else br++;if(ind.rsi>55)b++;else if(ind.rsi<45)br++;if(ind.macd.hist>0)b++;else if(ind.macd.hist<0)br++;return b>br+1?'Bullish':br>b+1?'Bearish':'Neutral'}
+function bias(ind){
+  if(!ind||!ind.ema50||!ind.ema200)return'Neutral';
+  let b=0,br=0;
+  // Price vs EMA200 — strong trend indicator, weight 3
+  if(ind.close>ind.ema200)b+=3;else br+=3;
+  // Price vs EMA50 — medium term, weight 2
+  if(ind.close>ind.ema50)b+=2;else br+=2;
+  // EMA50 vs EMA200 — structure
+  if(ind.ema50>ind.ema200)b++;else br++;
+  // Price vs SMA20
+  if(ind.close>ind.sma20)b++;else br++;
+  // MACD
+  if(ind.macd.hist>0)b++;else if(ind.macd.hist<0)br++;
+  // RSI (loose)
+  if(ind.rsi>52)b++;else if(ind.rsi<48)br++;
+  // Total max=9, need 4 = very responsive
+  if(b>=4)return'Bullish';
+  if(br>=4)return'Bearish';
+  return'Neutral';
+}
 
 // ========== SNR ==========
 function detectSNR(c1h,c15m){const all=[...c1h,...c15m.slice(-20)];const h=all.map(c=>c.high),l=all.map(c=>c.low),cl=all.map(c=>c.close);const cur=cl[cl.length-1];const at=calcATR(h,l,cl);const zones=[];
@@ -491,32 +510,38 @@ return p}
 // ========== SIGNAL GATE (RELAXED) ==========
 function evaluate(b1h,b15m,ind,zones,at){
   const reasons=[],checks={};
-  if(S.active&&S.active.status==='active')return{ok:false,reason:'Signal aktif masih open.',checks,reasons};
-  // Relaxed: if 1 TF has direction, use it
+  if(S.active&&S.active.status==='active')return{ok:false,reason:'Signal aktif masih open. Tunggu TP/SL.',checks,reasons};
+
+  // Get direction — 1H takes priority, fallback to 15m
   const dir=b1h!=='Neutral'?b1h:b15m;
-  if(dir==='Neutral')return{ok:false,reason:'Kedua-dua 1H dan 15m neutral. Market ranging.',checks,reasons};
-  // MTF check — relaxed vs strict
+  if(dir==='Neutral')return{ok:false,reason:'Tiada arah jelas dari kedua-dua 1H dan 15m.',checks,reasons};
+
+  // MTF — if strict mode, both must align. Default: 1 TF cukup
   if(S.prefs.strictMTF){
-    if(b1h!==b15m||b1h==='Neutral'){checks.mtf=false;reasons.push(`1H:${b1h} ≠ 15m:${b15m}`);}else checks.mtf=true;
+    if(b1h!==b15m||b1h==='Neutral'){checks.mtf=false;reasons.push(`MTF conflict: 1H=${b1h} vs 15m=${b15m}`);}
+    else checks.mtf=true;
   }else{
-    // Partial OK — just need 1 clear direction, bonus if aligned
-    checks.mtf=true;
-    if(b1h!=='Neutral'&&b15m!=='Neutral'&&b1h!==b15m){checks.mtf=false;reasons.push(`1H:${b1h} berlawanan 15m:${b15m}`);}
+    // Only block if actively conflicting (both non-neutral but opposite)
+    if(b1h!=='Neutral'&&b15m!=='Neutral'&&b1h!==b15m){checks.mtf=false;reasons.push(`1H:${b1h} bertentangan 15m:${b15m}`);}
+    else checks.mtf=true;
   }
-  // SNR
+
+  // SNR — informational only, never blocks signal
   const zone=zoneAt(ind.close,zones,at);
-  if(S.prefs.requireSNR&&!zone){checks.snr=false;const near=zones[0];reasons.push(`Price jauh dari zone (${near?('$'+Math.abs(ind.close-near.price).toFixed(2)+' ke '+near.type):'tiada zone'})`);}else checks.snr=true;
-  if(zone){
-    if(dir==='Bullish'&&(zone.type==='Resistance'||zone.type==='Supply')){checks.snrDir=false;reasons.push('Buy kat resistance — risk tinggi');}
-    else if(dir==='Bearish'&&(zone.type==='Support'||zone.type==='Demand')){checks.snrDir=false;reasons.push('Sell kat support — risk tinggi');}
+  checks.snr=true; // SNR never blocks — just used for SL/TP calc
+
+  // SNR direction — only block in very obvious counter-trend entries
+  if(zone&&S.prefs.requireSNR){
+    if(dir==='Bullish'&&zone.type==='Resistance'&&zone.str==='Strong'){checks.snrDir=false;reasons.push('Buy kat strong resistance');}
+    else if(dir==='Bearish'&&zone.type==='Support'&&zone.str==='Strong'){checks.snrDir=false;reasons.push('Sell kat strong support');}
     else checks.snrDir=true;
-  }
-  if(dir==='Bullish'&&ind.rsi>78){checks.rsi=false;reasons.push('RSI overbought');}
-  else if(dir==='Bearish'&&ind.rsi<22){checks.rsi=false;reasons.push('RSI oversold');}
+  }else checks.snrDir=true;
+
+  // RSI extreme only
+  if(dir==='Bullish'&&ind.rsi>80){checks.rsi=false;reasons.push('RSI overbought >80');}
+  else if(dir==='Bearish'&&ind.rsi<20){checks.rsi=false;reasons.push('RSI oversold <20');}
   else checks.rsi=true;
-  if(dir==='Bullish'&&ind.macd.hist<0){checks.macd=false;reasons.push('MACD belum bullish');}
-  else if(dir==='Bearish'&&ind.macd.hist>0){checks.macd=false;reasons.push('MACD belum bearish');}
-  else checks.macd=true;
+
   const fail=Object.values(checks).filter(v=>!v).length;
   if(fail>0)return{ok:false,reason:`${fail} syarat gagal`,checks,reasons,dir};
   return{ok:true,dir,zone,checks,reasons};
@@ -536,11 +561,15 @@ async function fetchTF(iv,sz=55){const r=await fetch(`https://api.twelvedata.com
 
 // ========== CLAUDE PROXY ==========
 async function callClaude(messages,maxTok=800){
-  const isLocal=location.hostname==='localhost'||location.hostname==='127.0.0.1';
-  const url=isLocal?'https://api.anthropic.com/v1/messages':'/api/claude';
-  const body=isLocal?{model:'claude-sonnet-4-20250514',max_tokens:maxTok,messages}:{model:'claude-sonnet-4-20250514',max_tokens:maxTok,messages,apiKey:''};
-  const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  return await r.json();
+  // Always use Netlify proxy — API key stored in Netlify env var ANTHROPIC_API_KEY
+  const r=await fetch('/api/claude',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:maxTok,messages})
+  });
+  const data=await r.json();
+  if(data.error)throw new Error(data.error);
+  return data;
 }
 
 async function runAI(ind,b1h,b15m,gate){
