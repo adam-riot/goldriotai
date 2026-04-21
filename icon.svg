@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <rect width="192" height="192" fill="#06060c" rx="40"/>
+  <circle cx="96" cy="88" r="36" fill="none" stroke="#d4a853" stroke-width="3"/>
+  <text x="96" y="99" font-size="32" text-anchor="middle" fill="#d4a853" font-family="monospace" font-weight="700">Au</text>
+  <text x="96" y="148" font-size="18" text-anchor="middle" fill="#666" font-family="monospace">XAUAI</text>
+</svg>

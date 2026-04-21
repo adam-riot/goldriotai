@@ -1,0 +1,11 @@
+{
+  "name": "XAUAI — Gold Intelligence",
+  "short_name": "XAUAI",
+  "description": "AI-powered gold market intelligence",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#06060c",
+  "theme_color": "#d4a853",
+  "orientation": "portrait-primary",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
