@@ -9,13 +9,19 @@ exports.handler = async (event) => {
   if (event.httpMethod !== "POST") return { statusCode: 405, headers, body: "Method not allowed" };
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return {
-    statusCode: 500, headers,
-    body: JSON.stringify({ error: "ANTHROPIC_API_KEY not configured in Netlify environment variables" })
-  };
+  if (!apiKey) {
+    console.error("ANTHROPIC_API_KEY not set");
+    return {
+      statusCode: 500, headers,
+      body: JSON.stringify({ error: "ANTHROPIC_API_KEY tidak ada dalam Netlify environment variables. Pergi Site config → Environment variables dan tambah key." })
+    };
+  }
+
+  let body;
+  try { body = JSON.parse(event.body); }
+  catch(e) { return { statusCode: 400, headers, body: JSON.stringify({ error: "Invalid JSON body" }) }; }
 
   try {
-    const body = JSON.parse(event.body);
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -29,9 +35,17 @@ exports.handler = async (event) => {
         messages: body.messages || [],
       }),
     });
+
     const data = await res.json();
+
+    // Log if Anthropic returns an error
+    if (data.error) {
+      console.error("Anthropic API error:", JSON.stringify(data.error));
+    }
+
     return { statusCode: 200, headers, body: JSON.stringify(data) };
   } catch (e) {
+    console.error("Fetch error:", e.message);
     return { statusCode: 500, headers, body: JSON.stringify({ error: e.message }) };
   }
 };
