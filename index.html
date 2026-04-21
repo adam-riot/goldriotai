@@ -554,21 +554,26 @@ function sltp(price,dir,zones,at){
 }
 
 // ========== API ==========
-function canCall(){const now=Date.now();if(now-S.apiTime>60000)S.apiCnt=0;return S.apiCnt<6}
+function canCall(){const now=Date.now();if(now-S.apiTime>60000)S.apiCnt=0;return S.apiCnt<7}
 function recordCall(n=1){S.apiCnt+=n;S.apiTime=Date.now();if(S.apiCnt>=5)showEl('rateWarn',true)}
 async function fetchPrice(){const r=await fetch(`https://api.twelvedata.com/price?symbol=${encodeURIComponent(S.sym)}&apikey=${S.tdKey}`);const j=await r.json();if(j.status==='error')throw new Error(j.message);return+j.price}
 async function fetchTF(iv,sz=55){const r=await fetch(`https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(S.sym)}&interval=${iv}&outputsize=${sz}&apikey=${S.tdKey}`);const j=await r.json();if(j.status==='error')throw new Error(j.message);return j.values.reverse().map(c=>({open:+c.open,high:+c.high,low:+c.low,close:+c.close,time:new Date(c.datetime).getTime()}))}
 
 // ========== CLAUDE PROXY ==========
 async function callClaude(messages,maxTok=800){
-  // Always use Netlify proxy — API key stored in Netlify env var ANTHROPIC_API_KEY
   const r=await fetch('/api/claude',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:maxTok,messages})
   });
   const data=await r.json();
-  if(data.error)throw new Error(data.error);
+  // Handle Anthropic API error object
+  if(data.error){
+    const msg=typeof data.error==='object'?(data.error.message||JSON.stringify(data.error)):data.error;
+    throw new Error(msg);
+  }
+  // Handle missing content
+  if(!data.content||!data.content[0])throw new Error('Empty response from Claude API. Check ANTHROPIC_API_KEY in Netlify env vars.');
   return data;
 }
 
@@ -623,8 +628,8 @@ async function handleRefresh(){
   if(S.loading)return;if(!canCall()){showErr('⚠ API limit — tunggu 1 minit');return}
   showErr('');setLoad(true);showSig('Fetching live price + candles...');
   try{
-    recordCall(3);
-    let lp;try{lp=await fetchPrice()}catch{lp=null}
+    recordCall(2); // Only 2 TF calls, price from candle
+    let lp=null; // Skip price call to save API credits
     const[c1h,c15m]=await Promise.all([fetchTF('1h',55),fetchTF('15min',55)]);
     const i1h=computeInd(c1h),i15m=computeInd(c15m);S.ind=i15m;
     const price=lp||i15m.close;S.livePrice=price;
@@ -797,8 +802,8 @@ function saveTd(){const v=document.getElementById('tdIn').value.trim();if(v){S.t
 function loadSetUI(){document.getElementById('minSlider').value=S.prefs.minConf||55;document.getElementById('minLbl').textContent=(S.prefs.minConf||55)+'%';['strictMTF','requireSNR'].forEach(k=>{const el=document.getElementById(k==='requireSNR'?'reqSNR':k);if(el)el.className='tgl '+(S.prefs[k]?'on':'off')})}
 
 // ========== LIVE PRICE TICK ==========
-setInterval(async()=>{if(S.loading||!canCall())return;try{recordCall(1);const p=await fetchPrice();S.livePrice=p;document.getElementById('pcPrice').textContent='$'+p.toFixed(2);if(S.ind){const ch=p-S.ind.open,pc=(ch/S.ind.open*100).toFixed(2);document.getElementById('pcChg').innerHTML=`<span style="color:${ch>=0?'var(--up)':'var(--dn)'}">${ch>=0?'+':''}${ch.toFixed(2)} (${pc}%)</span>`}checkAlerts(p);
-if(S.active?.status==='active'){const sig=S.active;if(sig.dir==='Bullish'){if(p>=sig.tp1)closeSig(sig,'win',p);else if(p<=sig.sl)closeSig(sig,'loss',p)}else{if(p<=sig.tp1)closeSig(sig,'win',p);else if(p>=sig.sl)closeSig(sig,'loss',p)}}}catch{}},30000);
+setInterval(async()=>{if(S.loading||!canCall())return;try{recordCall(1);const p=await fetchPrice();S.lastPriceTick=Date.now();S.livePrice=p;document.getElementById('pcPrice').textContent='$'+p.toFixed(2);if(S.ind){const ch=p-S.ind.open,pc=(ch/S.ind.open*100).toFixed(2);document.getElementById('pcChg').innerHTML=`<span style="color:${ch>=0?'var(--up)':'var(--dn)'}">${ch>=0?'+':''}${ch.toFixed(2)} (${pc}%)</span>`}checkAlerts(p);
+if(S.active?.status==='active'){const sig=S.active;if(sig.dir==='Bullish'){if(p>=sig.tp1)closeSig(sig,'win',p);else if(p<=sig.sl)closeSig(sig,'loss',p)}else{if(p<=sig.tp1)closeSig(sig,'win',p);else if(p>=sig.sl)closeSig(sig,'loss',p)}}}catch{}},60000); // 60s tick
 
 setInterval(handleRefresh,15*60*1000);
 setInterval(updateSession,60000);
