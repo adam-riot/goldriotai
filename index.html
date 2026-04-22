@@ -613,12 +613,20 @@ async function callClaude(messages,maxTok=800){
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:maxTok,messages})
   });
-  const data=await r.json();
+  // Handle non-200 responses
+  if(!r.ok){
+    const txt=await r.text();
+    throw new Error('Function error '+r.status+': '+txt.slice(0,200));
+  }
+  const txt2=await r.text();
+  if(!txt2||txt2.trim()===''){throw new Error('Response kosong dari function. Semak Cloudflare Pages → Settings → Variables ada ANTHROPIC_API_KEY.');}
+  let data;
+  try{data=JSON.parse(txt2);}catch(e){throw new Error('Response bukan JSON: '+txt2.slice(0,200));}
   if(data.error){
     const msg=typeof data.error==='object'?(data.error.message||JSON.stringify(data.error)):data.error;
     throw new Error(msg);
   }
-  if(!data.content||!data.content[0])throw new Error('Empty response. Check ANTHROPIC_API_KEY in Netlify.');
+  if(!data.content||!data.content[0])throw new Error('Empty response dari Claude API.');
   return data;
 }
 
@@ -630,21 +638,32 @@ function triggerUpload(idx){document.getElementById('file'+idx).click();}
 
 function onTFSelect(e,idx){
   const f=e.target.files[0];if(!f)return;
-  const rd=new FileReader();
-  rd.onload=ev=>{
-    const b64=ev.target.result.split(',')[1];
-    const mime=f.type||'image/jpeg';
-    S.charts[idx]={b64,mime,name:TF_NAMES[idx]};
-    // Update slot UI
-    const slot=document.getElementById('slot'+idx);
-    const prev=document.getElementById('preview'+idx);
-    const status=document.getElementById('status'+idx);
-    slot.classList.add('has-img');
-    prev.src=ev.target.result;prev.style.display='block';
-    status.textContent='✓ '+TF_NAMES[idx];
-    updateUploadUI();
+  // Compress image before storing
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const img=new Image();
+    img.onload=()=>{
+      // Resize to max 800px wide, compress to 60% quality
+      const MAX=800;
+      let w=img.width,h=img.height;
+      if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}
+      const canvas=document.createElement('canvas');
+      canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      const compressed=canvas.toDataURL('image/jpeg',0.6);
+      const b64=compressed.split(',')[1];
+      S.charts[idx]={b64,mime:'image/jpeg',name:TF_NAMES[idx]};
+      const slot=document.getElementById('slot'+idx);
+      const prev=document.getElementById('preview'+idx);
+      const status=document.getElementById('status'+idx);
+      slot.classList.add('has-img');
+      prev.src=compressed;prev.style.display='block';
+      status.textContent='✓ '+TF_NAMES[idx];
+      updateUploadUI();
+    };
+    img.src=ev.target.result;
   };
-  rd.readAsDataURL(f);
+  reader.readAsDataURL(f);
 }
 
 function updateUploadUI(){
