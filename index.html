@@ -203,6 +203,14 @@ td{font-size:11px;color:var(--fg2);padding:8px 4px;border-top:1px solid var(--b1
 .nav-ico{font-size:17px;line-height:1}
 .nav-dot{width:4px;height:4px;border-radius:50%;background:var(--dn);position:absolute;top:2px;right:10px}
 
+.tf-slot{background:var(--s2);border:1px dashed var(--b2);border-radius:10px;padding:8px;text-align:center;cursor:pointer;transition:all .2s;min-height:80px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+.tf-slot:active{border-color:var(--gold);background:var(--s3)}
+.tf-slot.has-img{border-style:solid;border-color:var(--upBd);background:#0d1a10}
+.tf-slot-lbl{font-size:11px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--gold);letter-spacing:1px}
+.tf-slot-icon{font-size:18px;line-height:1}
+.tf-slot-status{font-size:9px;color:var(--fg4)}
+.tf-slot.has-img .tf-slot-icon{display:none}
+.tf-slot.has-img .tf-slot-status{color:var(--up);font-size:9px}
 .spinning{animation:spin .7s linear infinite;display:inline-block}
 .fade{animation:fadeIn .3s ease forwards}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -262,20 +270,54 @@ td{font-size:11px;color:var(--fg2);padding:8px 4px;border-top:1px solid var(--b1
     <div class="err" id="errBox"></div>
     <div class="rate-warn" id="rateWarn">⚠ API hampir limit — tunggu 1 minit</div>
 
-    <!-- CHART VISION -->
+    <!-- CHART VISION MULTI-TF -->
     <div class="sec">
-      <div class="sec-head"><div class="sec-dot"></div><div class="sec-title">AI CHART VISION</div></div>
-      <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileIn').click()">
-        <div id="uploadContent">
-          <div class="upload-icon">📸</div>
-          <div class="upload-title">Screenshot chart → Claude baca</div>
-          <div class="upload-sub">Tap untuk upload screenshot TradingView / MT4 / MT5</div>
-        </div>
-        <img id="imgPreview" style="display:none"/>
-        <input type="file" id="fileIn" accept="image/*" style="display:none" onchange="onFileSelect(event)"/>
+      <div class="sec-head">
+        <div class="sec-dot"></div>
+        <div class="sec-title">AI CHART VISION — MULTI TIMEFRAME</div>
       </div>
+      <div style="font-size:10px;color:var(--fg3);margin-bottom:8px;padding:0 2px">Upload 1-3 chart (H4 + H1 + M15) untuk analisis top-down penuh</div>
+
+      <!-- 3 upload slots -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px">
+
+        <!-- H4 -->
+        <div class="tf-slot" id="slot0" onclick="triggerUpload(0)">
+          <input type="file" id="file0" accept="image/*" style="display:none" onchange="onTFSelect(event,0)"/>
+          <div class="tf-slot-lbl">H4</div>
+          <div class="tf-slot-icon" id="icon0">📸</div>
+          <div class="tf-slot-status" id="status0">Tap upload</div>
+          <img id="preview0" style="display:none;width:100%;border-radius:6px;margin-top:4px"/>
+        </div>
+
+        <!-- H1 -->
+        <div class="tf-slot" id="slot1" onclick="triggerUpload(1)">
+          <input type="file" id="file1" accept="image/*" style="display:none" onchange="onTFSelect(event,1)"/>
+          <div class="tf-slot-lbl">H1</div>
+          <div class="tf-slot-icon" id="icon1">📸</div>
+          <div class="tf-slot-status" id="status1">Tap upload</div>
+          <img id="preview1" style="display:none;width:100%;border-radius:6px;margin-top:4px"/>
+        </div>
+
+        <!-- M15 -->
+        <div class="tf-slot" id="slot2" onclick="triggerUpload(2)">
+          <input type="file" id="file2" accept="image/*" style="display:none" onchange="onTFSelect(event,2)"/>
+          <div class="tf-slot-lbl">M15</div>
+          <div class="tf-slot-icon" id="icon2">📸</div>
+          <div class="tf-slot-status" id="status2">Tap upload</div>
+          <img id="preview2" style="display:none;width:100%;border-radius:6px;margin-top:4px"/>
+        </div>
+
+      </div>
+
+      <!-- Uploaded count indicator -->
+      <div id="uploadCount" style="font-size:10px;color:var(--fg3);text-align:center;margin-bottom:6px"></div>
+
+      <!-- Clear all button -->
+      <button id="clearBtn" onclick="clearAllCharts()" style="display:none;width:100%;padding:6px;background:transparent;border:1px solid var(--b2);border-radius:8px;color:var(--fg3);font-size:11px;font-family:'Instrument Sans',sans-serif;cursor:pointer;margin-bottom:6px">✕ Clear semua chart</button>
+
       <button class="vision-btn" id="visionBtn" onclick="runVision()" disabled>
-        <span id="visionIco">◎</span> Analyse Chart dengan Claude AI
+        <span id="visionIco">◎</span> Analyse dengan Claude AI
       </button>
     </div>
 
@@ -447,7 +489,7 @@ const S={
   alerts:JSON.parse(localStorage.getItem('a5')||'[]'),
   prefs:JSON.parse(localStorage.getItem('p5')||'{"strictMTF":false,"requireSNR":true,"minConf":55}'),
   active:null,ind:null,loading:false,notif:false,
-  imgB64:null,imgMime:null,
+  charts:[null,null,null], // [H4, H1, M15] each: {b64, mime, name}
   vCnt:+localStorage.getItem('v5')||0,
   apiCnt:0,apiTime:0,livePrice:null,
 };
@@ -582,26 +624,111 @@ async function callClaude(messages,maxTok=800){
 
 
 // ========== VISION ==========
-function onFileSelect(e){const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=ev=>{S.imgB64=ev.target.result.split(',')[1];S.imgMime=f.type||'image/jpeg';document.getElementById('imgPreview').src=ev.target.result;document.getElementById('imgPreview').style.display='block';document.getElementById('uploadContent').style.display='none';document.getElementById('uploadZone').classList.add('has-img');document.getElementById('visionBtn').disabled=false};rd.readAsDataURL(f)}
+const TF_NAMES=['H4','H1','M15'];
+
+function triggerUpload(idx){document.getElementById('file'+idx).click();}
+
+function onTFSelect(e,idx){
+  const f=e.target.files[0];if(!f)return;
+  const rd=new FileReader();
+  rd.onload=ev=>{
+    const b64=ev.target.result.split(',')[1];
+    const mime=f.type||'image/jpeg';
+    S.charts[idx]={b64,mime,name:TF_NAMES[idx]};
+    // Update slot UI
+    const slot=document.getElementById('slot'+idx);
+    const prev=document.getElementById('preview'+idx);
+    const status=document.getElementById('status'+idx);
+    slot.classList.add('has-img');
+    prev.src=ev.target.result;prev.style.display='block';
+    status.textContent='✓ '+TF_NAMES[idx];
+    updateUploadUI();
+  };
+  rd.readAsDataURL(f);
+}
+
+function updateUploadUI(){
+  const loaded=S.charts.filter(c=>c!==null).length;
+  const countEl=document.getElementById('uploadCount');
+  const btn=document.getElementById('visionBtn');
+  const clearBtn=document.getElementById('clearBtn');
+  if(loaded===0){countEl.textContent='';btn.disabled=true;clearBtn.style.display='none';}
+  else{
+    const names=S.charts.map((c,i)=>c?TF_NAMES[i]:null).filter(Boolean).join(' + ');
+    countEl.textContent=loaded+' chart diupload: '+names+(loaded<3?' (boleh tambah '+(3-loaded)+' lagi)':'');
+    btn.disabled=false;
+    clearBtn.style.display='block';
+  }
+}
+
+function clearAllCharts(){
+  S.charts=[null,null,null];
+  [0,1,2].forEach(i=>{
+    document.getElementById('slot'+i).classList.remove('has-img');
+    document.getElementById('preview'+i).style.display='none';
+    document.getElementById('preview'+i).src='';
+    document.getElementById('status'+i).textContent='Tap upload';
+    document.getElementById('icon'+i).style.display='';
+    document.getElementById('file'+i).value='';
+  });
+  updateUploadUI();
+  document.getElementById('visionSec').style.display='none';
+}
+
+// Legacy single-file support (keep for compatibility)
+function onFileSelect(e){onTFSelect(e,2);}
 
 async function runVision(){
-  if(!S.imgB64)return;
+  const loaded=S.charts.filter(c=>c!==null);
+  if(!loaded.length)return;
   const btn=document.getElementById('visionBtn'),ico=document.getElementById('visionIco');
   btn.disabled=true;ico.className='spinning';
   try{
-    const indTxt=S.ind?`\nData semasa: Price:${S.ind.close} EMA50:${S.ind.ema50?.toFixed(2)} EMA200:${S.ind.ema200?.toFixed(2)} RSI:${S.ind.rsi?.toFixed(1)} MACD:${S.ind.macd.hist?.toFixed(4)} ATR:${S.ind.atr?.toFixed(2)}`:'';
-    const pr=`Kau adalah trader professional pakar ${S.label}/XAUUSD. Analisa chart dalam gambar ini dengan teliti.${indTxt}
+    const indTxt=S.ind?`\nData indikator semasa: Price:${S.ind.close} EMA50:${S.ind.ema50?.toFixed(2)} EMA200:${S.ind.ema200?.toFixed(2)} RSI:${S.ind.rsi?.toFixed(1)} MACD_hist:${S.ind.macd.hist?.toFixed(4)} ATR:${S.ind.atr?.toFixed(2)} 1H:${document.getElementById('mtf1h')?.textContent} 15m:${document.getElementById('mtf15m')?.textContent}`:'';
 
-Balas dengan JSON sahaja, tiada teks lain, tiada markdown:
-{"trend":"Bullish atau Bearish atau Neutral","confidence":50-95,"chart_analysis":"3-5 ayat dalam Bahasa Melayu — terangkan apa yang kau nampak: candlestick pattern, arah trend, momentum, volume","key_levels":"paras support dan resistance penting yang nampak dalam chart","signal":"Buy atau Sell atau Wait","entry_zone":"cadangan harga entry berdasarkan chart","stop_loss":"cadangan SL berdasarkan struktur chart","target":"target price berdasarkan chart","pattern":"nama candlestick atau chart pattern jika ada, atau kosong","risk_warning":"1 ayat tentang risiko setup ini"}`;
+    // Build content array — images first, then prompt
+    const imgParts=loaded.map(c=>({
+      type:'image',
+      source:{type:'base64',media_type:c.mime,data:c.b64}
+    }));
 
-    const res=await callClaude([{role:'user',content:[
-      {type:'image',source:{type:'base64',media_type:S.imgMime,data:S.imgB64}},
-      {type:'text',text:pr}
-    ]}],1200);
+    const tfList=loaded.map(c=>c.name).join(', ');
+    const tfCount=loaded.length;
+
+    const pr=`Kau trader professional pakar ${S.label}/XAUUSD. Aku upload ${tfCount} chart timeframe: ${tfList}.${indTxt}
+
+Buat analisis TOP-DOWN penuh berdasarkan semua chart:
+${loaded.map((c,i)=>`- Gambar ${i+1}: Timeframe ${c.name}`).join('\n')}
+
+Analisa dari TF besar ke kecil:
+1. TF besar (H4/H1) → trend utama, structure, SNR penting
+2. TF kecil (M15) → momentum, entry timing, pattern
+
+Balas JSON sahaja, tiada teks lain, tiada markdown:
+{
+  "trend": "Bullish atau Bearish atau Neutral",
+  "confidence": 50-95,
+  "tf_analysis": {
+    "h4": "apa nampak dalam H4 — trend besar, structure (kosongkan jika tiada H4)",
+    "h1": "apa nampak dalam H1 — trend medium, SNR zones (kosongkan jika tiada H1)",
+    "m15": "apa nampak dalam M15 — entry, pattern, momentum"
+  },
+  "mtf_alignment": "adakah semua TF align ke arah yang sama? terangkan",
+  "chart_analysis": "3-5 ayat BM — rumusan keseluruhan analisis top-down",
+  "key_levels": "level support dan resistance penting dari semua TF",
+  "signal": "Buy atau Sell atau Wait",
+  "entry_zone": "cadangan harga entry",
+  "stop_loss": "SL berdasarkan chart structure",
+  "target": "target berdasarkan next SNR zone",
+  "pattern": "pattern yang nampak jika ada",
+  "risk_warning": "1 ayat risiko utama setup ini"
+}`;
+
+    const res=await callClaude([{role:'user',content:[...imgParts,{type:'text',text:pr}]}],1500);
     const txt=res.content?.[0]?.text||'{}';
     const r=JSON.parse(txt.replace(/```json|```/g,'').trim());
-    renderVision(r);S.vCnt++;localStorage.setItem('v5',S.vCnt);
+    renderVision(r,tfList);
+    S.vCnt++;localStorage.setItem('v5',S.vCnt);
   }catch(e){
     document.getElementById('visionSec').style.display='block';
     document.getElementById('visionCard').innerHTML=`<div class="card fade" style="color:var(--dn);font-size:12px;line-height:1.7">
@@ -612,22 +739,52 @@ Balas dengan JSON sahaja, tiada teks lain, tiada markdown:
   finally{btn.disabled=false;ico.className='';ico.textContent='◎'}
 }
 
-function renderVision(r){
+function renderVision(r,tfList){
   document.getElementById('visionSec').style.display='block';
   const col=r.trend==='Bullish'?'var(--up)':r.trend==='Bearish'?'var(--dn)':'var(--warn)';
+  const sigCol=r.signal==='Buy'?'var(--up)':r.signal==='Sell'?'var(--dn)':'var(--warn)';
+
+  // Per-TF breakdown rows
+  const tfa=r.tf_analysis||{};
+  const tfRows=[
+    tfa.h4?`<div style="padding:7px 0;border-bottom:1px solid var(--b1)"><span style="font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--gold);font-weight:700">H4</span><div style="font-size:11px;color:var(--fg2);margin-top:3px;line-height:1.5">${tfa.h4}</div></div>`:'',
+    tfa.h1?`<div style="padding:7px 0;border-bottom:1px solid var(--b1)"><span style="font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--blue);font-weight:700">H1</span><div style="font-size:11px;color:var(--fg2);margin-top:3px;line-height:1.5">${tfa.h1}</div></div>`:'',
+    tfa.m15?`<div style="padding:7px 0"><span style="font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--warn);font-weight:700">M15</span><div style="font-size:11px;color:var(--fg2);margin-top:3px;line-height:1.5">${tfa.m15}</div></div>`:''
+  ].filter(Boolean).join('');
+
   document.getElementById('visionCard').innerHTML=`
   <div class="vision-card fade">
-    <div class="vision-head"><span class="vision-dot" style="background:${col}"></span><span class="vision-title" style="color:${col}">Claude Vision — ${r.trend} (${r.confidence}%)</span></div>
-    <p class="analysis-text" style="margin:0 0 8px">${r.chart_analysis}</p>
-    ${r.pattern?`<div style="margin-bottom:8px"><span class="pat-chip" style="background:var(--upBg);color:var(--up);border:1px solid var(--upBd)">🕯 ${r.pattern}</span></div>`:''}
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
-      <div style="background:var(--bg);border:1px solid var(--b1);border-radius:8px;padding:7px"><div style="font-size:9px;color:var(--fg4)">KEY LEVELS</div><div style="font-size:11px;margin-top:3px">${r.key_levels||'N/A'}</div></div>
-      <div style="background:var(--bg);border:1px solid var(--b1);border-radius:8px;padding:7px"><div style="font-size:9px;color:var(--fg4)">SIGNAL</div><div style="font-size:16px;font-weight:700;margin-top:2px;color:${r.signal==='Buy'?'var(--up)':r.signal==='Sell'?'var(--dn)':'var(--warn)'}">${r.signal}</div></div>
+    <div class="vision-head">
+      <span class="vision-dot" style="background:${col}"></span>
+      <span class="vision-title" style="color:${col}">Claude Vision — ${r.trend} (${r.confidence}%)</span>
+      <span style="margin-left:auto;font-size:9px;color:var(--fg4)">${tfList||'chart'}</span>
     </div>
+
+    ${tfRows?`<div style="background:var(--bg);border:1px solid var(--b1);border-radius:8px;padding:8px 10px;margin-bottom:8px">${tfRows}</div>`:''}
+
+    ${r.mtf_alignment?`<div style="background:${r.trend==='Bullish'?'var(--upBg)':r.trend==='Bearish'?'var(--dnBg)':'var(--warnBg)'};border:1px solid ${r.trend==='Bullish'?'var(--upBd)':r.trend==='Bearish'?'var(--dnBd)':'var(--warnBd)'};border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:11px;color:var(--fg2);line-height:1.5"><b style="font-size:9px;letter-spacing:.5px">MTF ALIGNMENT</b><br>${r.mtf_alignment}</div>`:''}
+
+    <p class="analysis-text" style="margin:0 0 8px">${r.chart_analysis}</p>
+
+    ${r.pattern?`<div style="margin-bottom:8px"><span class="pat-chip" style="background:var(--upBg);color:var(--up);border:1px solid var(--upBd)">🕯 ${r.pattern}</span></div>`:''}
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+      <div style="background:var(--bg);border:1px solid var(--b1);border-radius:8px;padding:8px">
+        <div style="font-size:9px;color:var(--fg4);margin-bottom:3px">KEY LEVELS</div>
+        <div style="font-size:11px;color:var(--fg2);line-height:1.5">${r.key_levels||'N/A'}</div>
+      </div>
+      <div style="background:var(--bg);border:1px solid var(--b1);border-radius:8px;padding:8px;display:flex;flex-direction:column;align-items:center;justify-content:center">
+        <div style="font-size:9px;color:var(--fg4);margin-bottom:4px">SIGNAL</div>
+        <div style="font-size:22px;font-weight:700;color:${sigCol}">${r.signal}</div>
+      </div>
+    </div>
+
     ${r.entry_zone?`<div class="row"><span class="rl">Entry</span><span class="rv" style="color:var(--gold)">${r.entry_zone}</span></div>`:''}
-    ${r.stop_loss?`<div class="row"><span class="rl">SL</span><span class="rv" style="color:var(--dn)">${r.stop_loss}</span></div>`:''}
+    ${r.stop_loss?`<div class="row"><span class="rl">Stop Loss</span><span class="rv" style="color:var(--dn)">${r.stop_loss}</span></div>`:''}
     ${r.target?`<div class="row"><span class="rl">Target</span><span class="rv" style="color:var(--up)">${r.target}</span></div>`:''}
-    ${r.risk_warning?`<div class="entry-tip">⚠ ${r.risk_warning}</div>`:''}
+
+    ${r.risk_warning?`<div class="entry-tip" style="margin-top:8px">⚠ ${r.risk_warning}</div>`:''}
+
     <div style="font-size:9px;color:var(--fg4);margin-top:8px">Claude Vision • ${new Date().toLocaleTimeString('ms-MY')}</div>
   </div>`;
 }
