@@ -608,7 +608,7 @@ async function fetchTF(iv,sz=55){const r=await fetch(`https://api.twelvedata.com
 // ========== AI PROXY ==========
 // Claude proxy (for text signal analysis)
 async function callClaude(messages,maxTok=800){
-  const r=await fetch('/api/claude',{
+  const r=await fetch('/functions/claude',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:maxTok,messages})
@@ -1002,4 +1002,4 @@ if('Notification'in window&&Notification.permission==='granted')S.notif=true;
 (function(){updateSession();if(S.hist.length){renderHist();renderWR()}loadSetUI();renderAlerts();handleRefresh()})();
 </script>
 </body>
-</html> 
+</html>
