@@ -380,10 +380,12 @@ td{font-size:11px;color:var(--fg2);padding:8px 4px;border-top:1px solid var(--b1
       <button class="set-btn" onclick="saveTd()">Save</button>
     </div>
     <div class="card">
-      <div style="font-size:11px;font-weight:600;color:var(--fg3);letter-spacing:.5px;margin-bottom:6px">GEMINI API KEY (AI VISION)</div>
-      <div style="font-size:11px;color:var(--fg3);margin-bottom:4px">Untuk analisa chart • <b style="color:var(--up)">100% FREE</b> • 1500 scans/hari • <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--gold)">Dapatkan key percuma →</a></div>
-      <input class="set-input" id="gemIn" placeholder="Masukkan Gemini API key..."/>
-      <button class="set-btn" onclick="saveGem()">Save</button>
+      <div style="font-size:11px;font-weight:600;color:var(--fg3);letter-spacing:.5px;margin-bottom:6px">CLAUDE AI (VISION + SIGNAL)</div>
+      <div style="font-size:11px;color:var(--fg3);line-height:1.7">
+        Claude AI digunakan untuk Vision dan Signal analysis.<br>
+        API key disimpan dalam <b style="color:var(--gold)">Netlify → Environment Variables</b> sebagai <code style="color:var(--up)">ANTHROPIC_API_KEY</code>.<br><br>
+        <a href="https://console.anthropic.com" target="_blank" style="color:var(--gold)">console.anthropic.com →</a>
+      </div>
     </div>
     <div class="card">
       <div style="font-size:11px;font-weight:600;color:var(--fg3);letter-spacing:.5px;margin-bottom:8px">SIGNAL FILTERS</div>
@@ -578,52 +580,6 @@ async function callClaude(messages,maxTok=800){
   return data;
 }
 
-// Gemini Vision (free tier — for chart image analysis)
-async function callGeminiVision(imageB64,imageMime,prompt){
-  const key=S.geminiKey;
-  if(!key)throw new Error('Gemini API key belum diset. Pergi Settings → masukkan Gemini API key.');
-  const url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
-  const body={
-    contents:[{parts:[
-      {inline_data:{mime_type:imageMime,data:imageB64}},
-      {text:prompt}
-    ]}],
-    generationConfig:{temperature:0.3,maxOutputTokens:1200}
-  };
-  const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  const data=await r.json();
-  if(data.error){
-    const msg=data.error.message||JSON.stringify(data.error);
-    throw new Error('Gemini: '+msg);
-  }
-  const text=data.candidates?.[0]?.content?.parts?.[0]?.text||'{}';
-  return text;
-}
-
-async function runAI(ind,b1h,b15m,gate,candles15m){
-  const d=gate.dir;
-  // Send last 50 candles OHLCV — same approach as reference system
-  const last50=candles15m.slice(-50);
-  const ohlcv=last50.map(c=>`${c.open.toFixed(2)},${c.high.toFixed(2)},${c.low.toFixed(2)},${c.close.toFixed(2)}`).join('|');
-  const pr=`Kau pakar teknikal XAUUSD. Analisa 50 candle M15 terbaru dan bagi signal.
-
-DATA (open,high,low,close per candle, terbaru di hujung):
-${ohlcv}
-
-INDICATORS (dikira dari data):
-EMA50:${ind.ema50?.toFixed(2)} EMA200:${ind.ema200?.toFixed(2)} SMA20:${ind.sma20?.toFixed(2)}
-RSI:${ind.rsi?.toFixed(1)} StochRSI:${((ind.stochRsi||0)*100).toFixed(1)} MACD_hist:${ind.macd.hist?.toFixed(4)}
-BB_upper:${ind.bb?.u?.toFixed(2)} BB_lower:${ind.bb?.l?.toFixed(2)} ATR:${ind.atr?.toFixed(2)}
-MTF: 1H=${b1h}, 15m=${b15m}
-Current Price: ${ind.close}
-
-Analisa keseluruhan 50 candle structure, bukan hanya indicator terakhir.
-Balas JSON sahaja, tiada markdown:
-{"trend":"Bullish|Bearish|Neutral","confidence":50-95,"analysis":"3-5 ayat BM — terangkan struktur 50 candle, momentum, EMA alignment, kenapa bias ini","signal":"Buy|Sell|Neutral","entry_reason":"1 ayat ringkas kenapa entry sekarang"}`;
-
-  const res=await callClaude([{role:'user',content:pr}],1200);
-  return JSON.parse((res.content?.[0]?.text||'{}').replace(/```json|```/g,'').trim());
-}
 
 // ========== VISION ==========
 function onFileSelect(e){const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=ev=>{S.imgB64=ev.target.result.split(',')[1];S.imgMime=f.type||'image/jpeg';document.getElementById('imgPreview').src=ev.target.result;document.getElementById('imgPreview').style.display='block';document.getElementById('uploadContent').style.display='none';document.getElementById('uploadZone').classList.add('has-img');document.getElementById('visionBtn').disabled=false};rd.readAsDataURL(f)}
@@ -639,15 +595,18 @@ async function runVision(){
 Balas dengan JSON sahaja, tiada teks lain, tiada markdown:
 {"trend":"Bullish atau Bearish atau Neutral","confidence":50-95,"chart_analysis":"3-5 ayat dalam Bahasa Melayu — terangkan apa yang kau nampak: candlestick pattern, arah trend, momentum, volume","key_levels":"paras support dan resistance penting yang nampak dalam chart","signal":"Buy atau Sell atau Wait","entry_zone":"cadangan harga entry berdasarkan chart","stop_loss":"cadangan SL berdasarkan struktur chart","target":"target price berdasarkan chart","pattern":"nama candlestick atau chart pattern jika ada, atau kosong","risk_warning":"1 ayat tentang risiko setup ini"}`;
 
-    const txt=await callGeminiVision(S.imgB64,S.imgMime,pr);
-    const clean=txt.replace(/```json|```/g,'').trim();
-    const r=JSON.parse(clean);
+    const res=await callClaude([{role:'user',content:[
+      {type:'image',source:{type:'base64',media_type:S.imgMime,data:S.imgB64}},
+      {type:'text',text:pr}
+    ]}],1200);
+    const txt=res.content?.[0]?.text||'{}';
+    const r=JSON.parse(txt.replace(/```json|```/g,'').trim());
     renderVision(r);S.vCnt++;localStorage.setItem('v5',S.vCnt);
   }catch(e){
     document.getElementById('visionSec').style.display='block';
     document.getElementById('visionCard').innerHTML=`<div class="card fade" style="color:var(--dn);font-size:12px;line-height:1.7">
       <b>Gagal:</b> ${e.message}<br><br>
-      <span style="color:var(--fg3)">Pastikan Gemini API key dah diset dalam Settings.</span>
+      <span style="color:var(--fg3)">Semak ANTHROPIC_API_KEY dalam Netlify Environment Variables.</span>
     </div>`;
   }
   finally{btn.disabled=false;ico.className='';ico.textContent='◎'}
