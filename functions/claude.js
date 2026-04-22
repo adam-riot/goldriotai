@@ -7,12 +7,18 @@ export async function onRequestPost(context) {
   const apiKey = context.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return new Response(JSON.stringify({
-      error: "ANTHROPIC_API_KEY tidak ada. Set dalam Cloudflare Pages → Settings → Environment Variables."
+      error: "ANTHROPIC_API_KEY tidak ada dalam Cloudflare Pages environment variables."
     }), { status: 500, headers });
   }
 
+  let body;
   try {
-    const body = await context.request.json();
+    body = await context.request.json();
+  } catch(e) {
+    return new Response(JSON.stringify({ error: "Invalid request body: " + e.message }), { status: 400, headers });
+  }
+
+  try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -26,8 +32,16 @@ export async function onRequestPost(context) {
         messages: body.messages || [],
       }),
     });
-    const data = await res.json();
-    return new Response(JSON.stringify(data), { status: 200, headers });
+
+    const responseText = await res.text();
+    
+    if (!res.ok) {
+      return new Response(JSON.stringify({ 
+        error: "Anthropic API error " + res.status + ": " + responseText.slice(0, 500)
+      }), { status: res.status, headers });
+    }
+
+    return new Response(responseText, { status: 200, headers });
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500, headers });
   }
