@@ -1,21 +1,45 @@
-export async function onRequestPost(context) {
-  const headers = {
+// Cloudflare Pages Function — handles all HTTP methods
+export async function onRequest(context) {
+  const { request, env } = context;
+  
+  // CORS headers
+  const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
+    "Access-Control-Allow-Headers": "Content-Type",
     "Content-Type": "application/json",
   };
 
-  const apiKey = context.env.ANTHROPIC_API_KEY;
+  // Handle preflight
+  if (request.method === "OPTIONS") {
+    return new Response(null, { status: 200, headers: corsHeaders });
+  }
+
+  // Only allow POST
+  if (request.method !== "POST") {
+    return new Response(
+      JSON.stringify({ error: "Method not allowed. Use POST." }),
+      { status: 200, headers: corsHeaders } // Return 200 to avoid CORS issues
+    );
+  }
+
+  // Check API key
+  const apiKey = env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    return new Response(JSON.stringify({
-      error: "ANTHROPIC_API_KEY tidak ada dalam Cloudflare Pages environment variables."
-    }), { status: 500, headers });
+    return new Response(
+      JSON.stringify({ error: "ANTHROPIC_API_KEY tidak diset dalam Cloudflare Pages → Settings → Variables and Secrets." }),
+      { status: 200, headers: corsHeaders }
+    );
   }
 
   let body;
   try {
-    body = await context.request.json();
-  } catch(e) {
-    return new Response(JSON.stringify({ error: "Invalid request body: " + e.message }), { status: 400, headers });
+    body = await request.json();
+  } catch (e) {
+    return new Response(
+      JSON.stringify({ error: "Invalid JSON body: " + e.message }),
+      { status: 200, headers: corsHeaders }
+    );
   }
 
   try {
@@ -33,27 +57,13 @@ export async function onRequestPost(context) {
       }),
     });
 
-    const responseText = await res.text();
-    
-    if (!res.ok) {
-      return new Response(JSON.stringify({ 
-        error: "Anthropic API error " + res.status + ": " + responseText.slice(0, 500)
-      }), { status: res.status, headers });
-    }
+    const text = await res.text();
+    return new Response(text, { status: 200, headers: corsHeaders });
 
-    return new Response(responseText, { status: 200, headers });
   } catch (e) {
-    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers });
+    return new Response(
+      JSON.stringify({ error: "Fetch error: " + e.message }),
+      { status: 200, headers: corsHeaders }
+    );
   }
-}
-
-export async function onRequestOptions() {
-  return new Response(null, {
-    status: 200,
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-    },
-  });
 }
