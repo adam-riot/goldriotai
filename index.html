@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="ms">
 <head>
 <meta charset="UTF-8"/>
@@ -25,20 +26,20 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Instrume
 #app{height:100dvh;display:flex;flex-direction:column;max-width:480px;margin:0 auto;overflow:hidden}
 
 /* TOP BAR */
-.topbar{background:var(--s1);border-bottom:1px solid var(--b1);padding:10px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0}
-.logo{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:600;color:var(--gold);letter-spacing:1px}
-.logo span{color:var(--fg3)}
-.session-pill{margin-left:auto;font-size:10px;padding:3px 10px;border-radius:12px;font-family:'JetBrains Mono',monospace}
+.topbar{background:var(–s1);border-bottom:1px solid var(–b1);padding:10px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+.logo{font-family:‘JetBrains Mono’,monospace;font-size:15px;font-weight:600;color:var(–gold);letter-spacing:1px}
+.logo span{color:var(–fg3)}
+.session-pill{margin-left:auto;font-size:10px;padding:3px 10px;border-radius:12px;font-family:‘JetBrains Mono’,monospace}
 .session-london{background:#0f1a28;color:#60a5fa;border:1px solid #1e3a5f}
 .session-ny{background:#1a1410;color:#f59e0b;border:1px solid #4a3e0a}
 .session-asia{background:#0f281a;color:#22c55e;border:1px solid #164e2a}
-.session-closed{background:var(--s2);color:var(--fg3);border:1px solid var(--b1)}
+.session-closed{background:var(–s2);color:var(–fg3);border:1px solid var(–b1)}
 
 /* SYMBOLS */
-.sym-row{display:flex;gap:0;border-bottom:1px solid var(--b1);flex-shrink:0;overflow-x:auto}
+.sym-row{display:flex;gap:0;border-bottom:1px solid var(–b1);flex-shrink:0;overflow-x:auto}
 .sym-row::-webkit-scrollbar{display:none}
-.sym-tab{flex:1;min-width:70px;padding:8px 0;text-align:center;font-size:12px;font-weight:500;color:var(--fg3);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;font-family:'JetBrains Mono',monospace}
-.sym-tab.active{color:var(--gold);border-bottom-color:var(--gold);background:var(--s1)}
+.sym-tab{flex:1;min-width:70px;padding:8px 0;text-align:center;font-size:12px;font-weight:500;color:var(–fg3);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;font-family:‘JetBrains Mono’,monospace}
+.sym-tab.active{color:var(–gold);border-bottom-color:var(–gold);background:var(–s1)}
 
 /* PAGES */
 .page{display:none;flex-direction:column;flex:1;overflow:hidden}
@@ -47,96 +48,96 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Instrume
 .scroll::-webkit-scrollbar{width:0}
 
 /* PRICE CARD */
-.price-card{margin:12px 12px 0;background:linear-gradient(145deg,var(--s2),var(--s1));border:1px solid var(--b1);border-radius:16px;padding:16px 18px;position:relative;overflow:hidden}
-.price-card::before{content:'';position:absolute;top:-30px;right:-30px;width:100px;height:100px;border-radius:50%;background:var(--gold);opacity:.03}
+.price-card{margin:12px 12px 0;background:linear-gradient(145deg,var(–s2),var(–s1));border:1px solid var(–b1);border-radius:16px;padding:16px 18px;position:relative;overflow:hidden}
+.price-card::before{content:’’;position:absolute;top:-30px;right:-30px;width:100px;height:100px;border-radius:50%;background:var(–gold);opacity:.03}
 .pc-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px}
-.pc-label{font-size:11px;color:var(--fg3);font-weight:500;letter-spacing:.5px}
-.pc-badge{font-size:10px;font-weight:600;padding:4px 12px;border-radius:8px;font-family:'JetBrains Mono',monospace}
-.pc-price{font-family:'JetBrains Mono',monospace;font-size:34px;font-weight:600;color:var(--fg);margin:4px 0 2px;letter-spacing:-1px}
-.pc-chg{font-size:12px;font-family:'JetBrains Mono',monospace}
+.pc-label{font-size:11px;color:var(–fg3);font-weight:500;letter-spacing:.5px}
+.pc-badge{font-size:10px;font-weight:600;padding:4px 12px;border-radius:8px;font-family:‘JetBrains Mono’,monospace}
+.pc-price{font-family:‘JetBrains Mono’,monospace;font-size:34px;font-weight:600;color:var(–fg);margin:4px 0 2px;letter-spacing:-1px}
+.pc-chg{font-size:12px;font-family:‘JetBrains Mono’,monospace}
 .pc-row{display:flex;gap:10px;margin-top:10px}
-.pc-mini{flex:1;background:var(--bg);border-radius:8px;padding:8px 10px;border:1px solid var(--b1)}
-.pc-mini-lbl{font-size:9px;color:var(--fg3);letter-spacing:.5px;margin-bottom:2px}
-.pc-mini-val{font-size:13px;font-weight:600;font-family:'JetBrains Mono',monospace}
+.pc-mini{flex:1;background:var(–bg);border-radius:8px;padding:8px 10px;border:1px solid var(–b1)}
+.pc-mini-lbl{font-size:9px;color:var(–fg3);letter-spacing:.5px;margin-bottom:2px}
+.pc-mini-val{font-size:13px;font-weight:600;font-family:‘JetBrains Mono’,monospace}
 
 /* MTF STRIP */
 .mtf-strip{display:flex;gap:6px;padding:10px 12px;flex-shrink:0}
-.mtf-chip{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 4px;border-radius:10px;background:var(--s2);border:1px solid var(--b1)}
-.mtf-chip-tf{font-size:9px;color:var(--fg3);font-family:'JetBrains Mono',monospace}
+.mtf-chip{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 4px;border-radius:10px;background:var(–s2);border:1px solid var(–b1)}
+.mtf-chip-tf{font-size:9px;color:var(–fg3);font-family:‘JetBrains Mono’,monospace}
 .mtf-chip-val{font-size:12px;font-weight:600}
 .mtf-chip-dot{width:5px;height:5px;border-radius:50%}
-.mtf-result{display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:10px;font-size:11px;font-weight:600;font-family:'JetBrains Mono',monospace}
+.mtf-result{display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:10px;font-size:11px;font-weight:600;font-family:‘JetBrains Mono’,monospace}
 
 /* SECTIONS */
 .sec{padding:0 12px;margin-top:12px}
 .sec-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-.sec-dot{width:6px;height:6px;border-radius:50%;background:var(--gold)}
-.sec-title{font-size:11px;font-weight:600;color:var(--fg3);letter-spacing:1px}
+.sec-dot{width:6px;height:6px;border-radius:50%;background:var(–gold)}
+.sec-title{font-size:11px;font-weight:600;color:var(–fg3);letter-spacing:1px}
 
 /* CARDS */
-.card{background:var(--s2);border:1px solid var(--b1);border-radius:14px;padding:14px;margin-bottom:8px}
+.card{background:var(–s2);border:1px solid var(–b1);border-radius:14px;padding:14px;margin-bottom:8px}
 
 /* SIGNAL CARD */
 .sig-card{border-radius:14px;padding:16px;margin-bottom:8px;position:relative;overflow:hidden}
-.sig-bull{background:linear-gradient(145deg,#0d1e14,var(--s2));border:1px solid var(--upBd)}
-.sig-bear{background:linear-gradient(145deg,#1e0d0d,var(--s2));border:1px solid var(--dnBd)}
-.sig-wait{background:var(--s2);border:1px dashed var(--b2)}
+.sig-bull{background:linear-gradient(145deg,#0d1e14,var(–s2));border:1px solid var(–upBd)}
+.sig-bear{background:linear-gradient(145deg,#1e0d0d,var(–s2));border:1px solid var(–dnBd)}
+.sig-wait{background:var(–s2);border:1px dashed var(–b2)}
 .sig-header{display:flex;align-items:center;gap:8px;margin-bottom:12px}
 .sig-arrow{width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700}
-.sig-arrow-up{background:var(--upBg);color:var(--up);border:1px solid var(--upBd)}
-.sig-arrow-dn{background:var(--dnBg);color:var(--dn);border:1px solid var(--dnBd)}
+.sig-arrow-up{background:var(–upBg);color:var(–up);border:1px solid var(–upBd)}
+.sig-arrow-dn{background:var(–dnBg);color:var(–dn);border:1px solid var(–dnBd)}
 .sig-info{flex:1}
 .sig-dir{font-size:16px;font-weight:700}
-.sig-sub{font-size:10px;color:var(--fg3)}
-.sig-status{font-size:9px;font-weight:600;padding:3px 10px;border-radius:6px;font-family:'JetBrains Mono',monospace}
+.sig-sub{font-size:10px;color:var(–fg3)}
+.sig-status{font-size:9px;font-weight:600;padding:3px 10px;border-radius:6px;font-family:‘JetBrains Mono’,monospace}
 
 .row{display:flex;justify-content:space-between;align-items:center;padding:5px 0}
-.rl{font-size:12px;color:var(--fg3)}.rv{font-size:12px;font-weight:600;font-family:'JetBrains Mono',monospace}
+.rl{font-size:12px;color:var(–fg3)}.rv{font-size:12px;font-weight:600;font-family:‘JetBrains Mono’,monospace}
 
-.divider{height:1px;background:var(--b1);margin:8px 0}
+.divider{height:1px;background:var(–b1);margin:8px 0}
 
 /* CONFIDENCE RING */
-.conf-ring{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;font-family:'JetBrains Mono',monospace;position:relative}
-.conf-ring::before{content:'';position:absolute;inset:0;border-radius:50%;border:3px solid var(--b2)}
+.conf-ring{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;font-family:‘JetBrains Mono’,monospace;position:relative}
+.conf-ring::before{content:’’;position:absolute;inset:0;border-radius:50%;border:3px solid var(–b2)}
 
-.analysis-text{font-size:12px;color:var(--fg2);line-height:1.7;margin-top:8px}
-.entry-tip{background:var(--bg);border:1px solid var(--b1);border-radius:10px;padding:10px;margin-top:8px;font-size:11px;color:var(--fg3);line-height:1.6}
+.analysis-text{font-size:12px;color:var(–fg2);line-height:1.7;margin-top:8px}
+.entry-tip{background:var(–bg);border:1px solid var(–b1);border-radius:10px;padding:10px;margin-top:8px;font-size:11px;color:var(–fg3);line-height:1.6}
 
 /* TREND STRENGTH METER */
 .strength-bar{display:flex;gap:2px;margin-top:6px}
-.str-seg{flex:1;height:6px;border-radius:3px;background:var(--b2);transition:background .3s}
+.str-seg{flex:1;height:6px;border-radius:3px;background:var(–b2);transition:background .3s}
 
 /* CHART UPLOAD */
-.upload-zone{background:var(--s2);border:1px dashed var(--b2);border-radius:14px;padding:20px;text-align:center;cursor:pointer;transition:border-color .2s}
-.upload-zone:active{border-color:var(--gold)}
+.upload-zone{background:var(–s2);border:1px dashed var(–b2);border-radius:14px;padding:20px;text-align:center;cursor:pointer;transition:border-color .2s}
+.upload-zone:active{border-color:var(–gold)}
 .upload-zone.has-img{border-style:solid;padding:0;overflow:hidden}
 .upload-zone img{width:100%;border-radius:14px;display:block}
 .upload-icon{font-size:20px;margin-bottom:6px;opacity:.6}
-.upload-title{font-size:13px;font-weight:600;color:var(--fg)}
-.upload-sub{font-size:11px;color:var(--fg3);margin-top:3px}
-.vision-btn{width:100%;padding:12px;background:linear-gradient(135deg,var(--goldDim),var(--gold));border:none;border-radius:12px;color:#000;font-size:13px;font-weight:600;font-family:'Instrument Sans',sans-serif;cursor:pointer;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:8px;transition:opacity .2s}
+.upload-title{font-size:13px;font-weight:600;color:var(–fg)}
+.upload-sub{font-size:11px;color:var(–fg3);margin-top:3px}
+.vision-btn{width:100%;padding:12px;background:linear-gradient(135deg,var(–goldDim),var(–gold));border:none;border-radius:12px;color:#000;font-size:13px;font-weight:600;font-family:‘Instrument Sans’,sans-serif;cursor:pointer;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:8px;transition:opacity .2s}
 .vision-btn:disabled{opacity:.4;cursor:not-allowed}
 .vision-btn:active{opacity:.8}
 
 /* VISION RESULT */
-.vision-card{background:linear-gradient(145deg,#0a1a14,var(--s2));border:1px solid #1a3a28;border-radius:14px;padding:14px;margin-bottom:8px}
+.vision-card{background:linear-gradient(145deg,#0a1a14,var(–s2));border:1px solid #1a3a28;border-radius:14px;padding:14px;margin-bottom:8px}
 .vision-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-.vision-dot{width:8px;height:8px;border-radius:50%;background:var(--up);animation:pulse 2s infinite}
-.vision-title{font-size:12px;font-weight:600;color:var(--up)}
+.vision-dot{width:8px;height:8px;border-radius:50%;background:var(–up);animation:pulse 2s infinite}
+.vision-title{font-size:12px;font-weight:600;color:var(–up)}
 
 /* SNR ZONES */
-.zone-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--b1)}
+.zone-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(–b1)}
 .zone-row:last-child{border-bottom:none}
 .zone-type{font-size:10px;font-weight:600;letter-spacing:.5px}
-.zone-src{font-size:9px;color:var(--fg4);margin-top:1px}
-.zone-price{font-size:13px;font-weight:600;font-family:'JetBrains Mono',monospace}
+.zone-src{font-size:9px;color:var(–fg4);margin-top:1px}
+.zone-price{font-size:13px;font-weight:600;font-family:‘JetBrains Mono’,monospace}
 .zone-str{font-size:9px;padding:2px 7px;border-radius:4px;font-weight:600}
 
 /* INDICATOR GRID */
 .ind-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
-.ind-box{background:var(--bg);border:1px solid var(--b1);border-radius:10px;padding:8px}
-.ind-lbl{font-size:8px;color:var(--fg4);letter-spacing:1px;margin-bottom:3px;font-family:'JetBrains Mono',monospace}
-.ind-val{font-size:14px;font-weight:600;font-family:'JetBrains Mono',monospace}
+.ind-box{background:var(–bg);border:1px solid var(–b1);border-radius:10px;padding:8px}
+.ind-lbl{font-size:8px;color:var(–fg4);letter-spacing:1px;margin-bottom:3px;font-family:‘JetBrains Mono’,monospace}
+.ind-val{font-size:14px;font-weight:600;font-family:‘JetBrains Mono’,monospace}
 
 /* PATTERN CHIPS */
 .pat-chip{display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:4px 10px;border-radius:8px;font-weight:600;margin:2px}
@@ -145,100 +146,103 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Instrume
 .nosig{text-align:center;padding:24px 16px}
 .nosig-icon{font-size:28px;margin-bottom:8px;opacity:.5}
 .nosig-title{font-size:14px;font-weight:600;margin-bottom:6px}
-.nosig-reason{font-size:12px;color:var(--fg3);line-height:1.6;margin-bottom:10px}
+.nosig-reason{font-size:12px;color:var(–fg3);line-height:1.6;margin-bottom:10px}
 .nosig-item{display:flex;gap:6px;align-items:flex-start;text-align:left;margin-bottom:4px;font-size:11px}
 .nosig-chip{font-size:9px;padding:2px 8px;border-radius:6px;font-weight:600}
 
 /* HISTORY TABLE */
 table{width:100%;border-collapse:collapse}
-th{font-size:9px;color:var(--fg4);text-align:left;padding:5px 4px;font-family:'JetBrains Mono',monospace;letter-spacing:.5px}
-td{font-size:11px;color:var(--fg2);padding:8px 4px;border-top:1px solid var(--b1);font-family:'JetBrains Mono',monospace}
+th{font-size:9px;color:var(–fg4);text-align:left;padding:5px 4px;font-family:‘JetBrains Mono’,monospace;letter-spacing:.5px}
+td{font-size:11px;color:var(–fg2);padding:8px 4px;border-top:1px solid var(–b1);font-family:‘JetBrains Mono’,monospace}
 
 /* WIN RATE */
 .stat-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px}
-.stat-box{background:var(--s2);border:1px solid var(--b1);border-radius:12px;padding:12px;text-align:center}
-.stat-lbl{font-size:9px;color:var(--fg3);letter-spacing:.5px;margin-bottom:4px;font-family:'JetBrains Mono',monospace}
-.stat-val{font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace}
+.stat-box{background:var(–s2);border:1px solid var(–b1);border-radius:12px;padding:12px;text-align:center}
+.stat-lbl{font-size:9px;color:var(–fg3);letter-spacing:.5px;margin-bottom:4px;font-family:‘JetBrains Mono’,monospace}
+.stat-val{font-size:20px;font-weight:700;font-family:‘JetBrains Mono’,monospace}
 
 /* ALERTS */
-.alert-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--b1)}
+.alert-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(–b1)}
 .alert-row:last-child{border-bottom:none}
 .alert-form{display:flex;gap:6px;margin-top:10px}
-.al-input{flex:1;background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:8px 12px;color:var(--fg);font-size:13px;font-family:'Instrument Sans',sans-serif;outline:none}
-.al-input:focus{border-color:var(--gold)}
-.al-btn{padding:8px 16px;background:var(--gold);border:none;border-radius:10px;color:#000;font-weight:600;font-size:13px;cursor:pointer;font-family:'Instrument Sans',sans-serif}
-.al-del{background:transparent;border:1px solid var(--dnBd);color:var(--dn);border-radius:6px;font-size:10px;padding:3px 8px;cursor:pointer;font-family:'JetBrains Mono',monospace}
+.al-input{flex:1;background:var(–s1);border:1px solid var(–b1);border-radius:10px;padding:8px 12px;color:var(–fg);font-size:13px;font-family:‘Instrument Sans’,sans-serif;outline:none}
+.al-input:focus{border-color:var(–gold)}
+.al-btn{padding:8px 16px;background:var(–gold);border:none;border-radius:10px;color:#000;font-weight:600;font-size:13px;cursor:pointer;font-family:‘Instrument Sans’,sans-serif}
+.al-del{background:transparent;border:1px solid var(–dnBd);color:var(–dn);border-radius:6px;font-size:10px;padding:3px 8px;cursor:pointer;font-family:‘JetBrains Mono’,monospace}
 
 /* NEWS */
-.news-item{padding:10px 0;border-bottom:1px solid var(--b1)}
+.news-item{padding:10px 0;border-bottom:1px solid var(–b1)}
 .news-item:last-child{border-bottom:none}
-.news-src{font-size:9px;color:var(--fg4);letter-spacing:.5px;font-family:'JetBrains Mono',monospace}
-.news-title{font-size:12px;font-weight:500;color:var(--fg);line-height:1.5;margin-top:3px;cursor:pointer}
-.news-title:active{color:var(--gold)}
+.news-src{font-size:9px;color:var(–fg4);letter-spacing:.5px;font-family:‘JetBrains Mono’,monospace}
+.news-title{font-size:12px;font-weight:500;color:var(–fg);line-height:1.5;margin-top:3px;cursor:pointer}
+.news-title:active{color:var(–gold)}
 
 /* SETTINGS */
-.set-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--b1)}
+.set-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(–b1)}
 .set-row:last-child{border-bottom:none}
-.set-lbl{font-size:13px;font-weight:500}.set-sub{font-size:10px;color:var(--fg3);margin-top:2px}
+.set-lbl{font-size:13px;font-weight:500}.set-sub{font-size:10px;color:var(–fg3);margin-top:2px}
 .tgl{width:40px;height:22px;border-radius:11px;border:none;cursor:pointer;position:relative;transition:background .2s;flex-shrink:0}
-.tgl.on{background:var(--gold)}.tgl.off{background:var(--b2)}
-.tgl::after{content:'';position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:3px;transition:left .2s}
+.tgl.on{background:var(–gold)}.tgl.off{background:var(–b2)}
+.tgl::after{content:’’;position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:3px;transition:left .2s}
 .tgl.on::after{left:21px}.tgl.off::after{left:3px}
-.set-input{width:100%;background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:8px 12px;color:var(--fg);font-size:13px;font-family:'JetBrains Mono',monospace;outline:none;margin-top:6px}
-.set-btn{margin-top:6px;padding:8px 16px;background:var(--gold);border:none;border-radius:10px;color:#000;font-weight:600;font-size:12px;cursor:pointer;font-family:'Instrument Sans',sans-serif}
-.export-btn{width:100%;padding:10px;background:var(--s2);border:1px solid var(--b1);border-radius:10px;color:var(--fg);font-size:12px;font-weight:500;cursor:pointer;margin-top:8px;font-family:'Instrument Sans',sans-serif}
+.set-input{width:100%;background:var(–s1);border:1px solid var(–b1);border-radius:10px;padding:8px 12px;color:var(–fg);font-size:13px;font-family:‘JetBrains Mono’,monospace;outline:none;margin-top:6px}
+.set-btn{margin-top:6px;padding:8px 16px;background:var(–gold);border:none;border-radius:10px;color:#000;font-weight:600;font-size:12px;cursor:pointer;font-family:‘Instrument Sans’,sans-serif}
+.export-btn{width:100%;padding:10px;background:var(–s2);border:1px solid var(–b1);border-radius:10px;color:var(–fg);font-size:12px;font-weight:500;cursor:pointer;margin-top:8px;font-family:‘Instrument Sans’,sans-serif}
 
 /* LOADING */
 .ld-wrap{display:flex;flex-direction:column;align-items:center;padding:30px 0;gap:10px}
-.ld-spin{width:28px;height:28px;border:2px solid var(--b2);border-top:2px solid var(--gold);border-radius:50%;animation:spin .8s linear infinite}
-.ld-text{font-size:11px;color:var(--fg3);text-align:center;line-height:1.5}
+.ld-spin{width:28px;height:28px;border:2px solid var(–b2);border-top:2px solid var(–gold);border-radius:50%;animation:spin .8s linear infinite}
+.ld-text{font-size:11px;color:var(–fg3);text-align:center;line-height:1.5}
 
-.err{background:var(--dnBg);border:1px solid var(--dnBd);border-radius:10px;padding:10px 14px;margin:8px 12px;font-size:11px;color:var(--dn);display:none}
-.rate-warn{background:var(--warnBg);border:1px solid var(--warnBd);border-radius:10px;padding:8px 12px;margin:4px 12px;font-size:10px;color:var(--warn);display:none}
+.err{background:var(–dnBg);border:1px solid var(–dnBd);border-radius:10px;padding:10px 14px;margin:8px 12px;font-size:11px;color:var(–dn);display:none}
+.rate-warn{background:var(–warnBg);border:1px solid var(–warnBd);border-radius:10px;padding:8px 12px;margin:4px 12px;font-size:10px;color:var(–warn);display:none}
 
 /* NAVBAR */
-.nav{position:absolute;bottom:0;left:0;right:0;background:var(--s1);border-top:1px solid var(--b1);display:flex;justify-content:space-around;padding:6px 0 max(14px,env(safe-area-inset-bottom));z-index:100;backdrop-filter:blur(10px)}
-.nav-item{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:9px;color:var(--fg4);cursor:pointer;padding:4px 12px;border-radius:10px;transition:all .2s;position:relative}
-.nav-item.active{color:var(--gold);background:rgba(212,168,83,.06)}
+.nav{position:absolute;bottom:0;left:0;right:0;background:var(–s1);border-top:1px solid var(–b1);display:flex;justify-content:space-around;padding:6px 0 max(14px,env(safe-area-inset-bottom));z-index:100;backdrop-filter:blur(10px)}
+.nav-item{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:9px;color:var(–fg4);cursor:pointer;padding:4px 12px;border-radius:10px;transition:all .2s;position:relative}
+.nav-item.active{color:var(–gold);background:rgba(212,168,83,.06)}
 .nav-ico{font-size:17px;line-height:1}
-.nav-dot{width:4px;height:4px;border-radius:50%;background:var(--dn);position:absolute;top:2px;right:10px}
+.nav-dot{width:4px;height:4px;border-radius:50%;background:var(–dn);position:absolute;top:2px;right:10px}
 
-.cal-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--b1)}
+.cal-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(–b1)}
 .cal-item:last-child{border-bottom:none}
-.cal-time{font-size:10px;color:var(--fg3);font-family:'JetBrains Mono',monospace;min-width:50px}
+.cal-time{font-size:10px;color:var(–fg3);font-family:‘JetBrains Mono’,monospace;min-width:50px}
 .cal-event{flex:1;padding:0 8px}
-.cal-event-name{font-size:12px;font-weight:500;color:var(--fg)}
-.cal-currency{font-size:10px;color:var(--fg3)}
+.cal-event-name{font-size:12px;font-weight:500;color:var(–fg)}
+.cal-currency{font-size:10px;color:var(–fg3)}
 .cal-impact{font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px}
-.imp-high{background:var(--dnBg);color:var(--dn);border:1px solid var(--dnBd)}
-.imp-med{background:var(--warnBg);color:var(--warn);border:1px solid var(--warnBd)}
-.imp-low{background:var(--s3);color:var(--fg3);border:1px solid var(--b2)}
-.cal-soon{background:var(--dnBg)!important;border-color:var(--dnBd)!important}
-.tf-slot{background:var(--s2);border:1px dashed var(--b2);border-radius:10px;padding:8px;text-align:center;cursor:pointer;transition:all .2s;min-height:80px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
-.tf-slot:active{border-color:var(--gold);background:var(--s3)}
-.tf-slot.has-img{border-style:solid;border-color:var(--upBd);background:#0d1a10}
-.tf-slot-lbl{font-size:11px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--gold);letter-spacing:1px}
+.imp-high{background:var(–dnBg);color:var(–dn);border:1px solid var(–dnBd)}
+.imp-med{background:var(–warnBg);color:var(–warn);border:1px solid var(–warnBd)}
+.imp-low{background:var(–s3);color:var(–fg3);border:1px solid var(–b2)}
+.cal-soon{background:var(–dnBg)!important;border-color:var(–dnBd)!important}
+.tf-slot{background:var(–s2);border:1px dashed var(–b2);border-radius:10px;padding:8px;text-align:center;cursor:pointer;transition:all .2s;min-height:80px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+.tf-slot:active{border-color:var(–gold);background:var(–s3)}
+.tf-slot.has-img{border-style:solid;border-color:var(–upBd);background:#0d1a10}
+.tf-slot-lbl{font-size:11px;font-weight:700;font-family:‘JetBrains Mono’,monospace;color:var(–gold);letter-spacing:1px}
 .tf-slot-icon{font-size:18px;line-height:1}
-.tf-slot-status{font-size:9px;color:var(--fg4)}
+.tf-slot-status{font-size:9px;color:var(–fg4)}
 .tf-slot.has-img .tf-slot-icon{display:none}
-.tf-slot.has-img .tf-slot-status{color:var(--up);font-size:9px}
+.tf-slot.has-img .tf-slot-status{color:var(–up);font-size:9px}
 .spinning{animation:spin .7s linear infinite;display:inline-block}
 .fade{animation:fadeIn .3s ease forwards}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 </style>
+
 </head>
 <body>
 <div id="app">
 
 <!-- TOP BAR -->
+
 <div class="topbar">
   <div class="logo">XAU<span>AI</span></div>
   <div id="sessionPill" class="session-pill session-closed">Closed</div>
 </div>
 
 <!-- SYMBOLS -->
+
 <div class="sym-row">
   <div class="sym-tab active" onclick="setSym('XAU/USD','GOLD',this)">GOLD</div>
   <div class="sym-tab" onclick="setSym('XAG/USD','SILVER',this)">SILVER</div>
@@ -247,6 +251,7 @@ td{font-size:11px;color:var(--fg2);padding:8px 4px;border-top:1px solid var(--b1
 </div>
 
 <!-- ===== HOME ===== -->
+
 <div class="page active" id="pgHome">
   <div class="scroll">
     <!-- PRICE CARD -->
@@ -266,110 +271,120 @@ td{font-size:11px;color:var(--fg2);padding:8px 4px;border-top:1px solid var(--b1
       </div>
     </div>
 
-    <!-- MTF -->
-    <div class="mtf-strip">
-      <div class="mtf-chip"><div class="mtf-chip-tf">1H</div><div class="mtf-chip-dot" id="mtfDot1h" style="background:var(--fg4)"></div><div class="mtf-chip-val" id="mtf1h" style="color:var(--fg3)">--</div></div>
-      <div class="mtf-chip"><div class="mtf-chip-tf">15m</div><div class="mtf-chip-dot" id="mtfDot15m" style="background:var(--fg4)"></div><div class="mtf-chip-val" id="mtf15m" style="color:var(--fg3)">--</div></div>
-      <div class="mtf-result" id="mtfResult" style="background:var(--s2);border:1px solid var(--b1);color:var(--fg3)">Scanning</div>
+```
+<!-- MTF -->
+<div class="mtf-strip">
+  <div class="mtf-chip"><div class="mtf-chip-tf">1H</div><div class="mtf-chip-dot" id="mtfDot1h" style="background:var(--fg4)"></div><div class="mtf-chip-val" id="mtf1h" style="color:var(--fg3)">--</div></div>
+  <div class="mtf-chip"><div class="mtf-chip-tf">15m</div><div class="mtf-chip-dot" id="mtfDot15m" style="background:var(--fg4)"></div><div class="mtf-chip-val" id="mtf15m" style="color:var(--fg3)">--</div></div>
+  <div class="mtf-result" id="mtfResult" style="background:var(--s2);border:1px solid var(--b1);color:var(--fg3)">Scanning</div>
+</div>
+
+<!-- CONTROLS -->
+<div style="display:flex;gap:6px;padding:0 12px;flex-shrink:0">
+  <button class="refresh-btn" onclick="handleRefresh()" style="flex:1;padding:8px;border-radius:10px;background:var(--s2);border:1px solid var(--b1);color:var(--fg2);font-size:12px;font-family:'Instrument Sans',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px"><span id="refIco">↻</span> Refresh Data</button>
+</div>
+
+<div class="err" id="errBox"></div>
+<div class="rate-warn" id="rateWarn">⚠ API hampir limit — tunggu 1 minit</div>
+
+<!-- CHART VISION MULTI-TF -->
+<div class="sec">
+  <div class="sec-head">
+    <div class="sec-dot"></div>
+    <div class="sec-title">AI CHART VISION — MULTI TIMEFRAME</div>
+  </div>
+  <div style="font-size:10px;color:var(--fg3);margin-bottom:8px;padding:0 2px">Upload 1-3 chart (H4 + H1 + M15) untuk analisis top-down penuh</div>
+
+  <!-- 3 upload slots -->
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px">
+
+    <!-- H4 -->
+    <div class="tf-slot" id="slot0" onclick="triggerUpload(0)">
+      <input type="file" id="file0" accept="image/*" style="display:none" onchange="onTFSelect(event,0)"/>
+      <div class="tf-slot-lbl">H4</div>
+      <div class="tf-slot-icon" id="icon0">📸</div>
+      <div class="tf-slot-status" id="status0">Tap upload</div>
+      <img id="preview0" style="display:none;width:100%;border-radius:6px;margin-top:4px"/>
     </div>
 
-    <!-- CONTROLS -->
-    <div style="display:flex;gap:6px;padding:0 12px;flex-shrink:0">
-      <button class="refresh-btn" onclick="handleRefresh()" style="flex:1;padding:8px;border-radius:10px;background:var(--s2);border:1px solid var(--b1);color:var(--fg2);font-size:12px;font-family:'Instrument Sans',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px"><span id="refIco">↻</span> Refresh Data</button>
+    <!-- H1 -->
+    <div class="tf-slot" id="slot1" onclick="triggerUpload(1)">
+      <input type="file" id="file1" accept="image/*" style="display:none" onchange="onTFSelect(event,1)"/>
+      <div class="tf-slot-lbl">H1</div>
+      <div class="tf-slot-icon" id="icon1">📸</div>
+      <div class="tf-slot-status" id="status1">Tap upload</div>
+      <img id="preview1" style="display:none;width:100%;border-radius:6px;margin-top:4px"/>
     </div>
 
-    <div class="err" id="errBox"></div>
-    <div class="rate-warn" id="rateWarn">⚠ API hampir limit — tunggu 1 minit</div>
-
-    <!-- CHART VISION MULTI-TF -->
-    <div class="sec">
-      <div class="sec-head">
-        <div class="sec-dot"></div>
-        <div class="sec-title">AI CHART VISION — MULTI TIMEFRAME</div>
-      </div>
-      <div style="font-size:10px;color:var(--fg3);margin-bottom:8px;padding:0 2px">Upload 1-3 chart (H4 + H1 + M15) untuk analisis top-down penuh</div>
-
-      <!-- 3 upload slots -->
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px">
-
-        <!-- H4 -->
-        <div class="tf-slot" id="slot0" onclick="triggerUpload(0)">
-          <input type="file" id="file0" accept="image/*" style="display:none" onchange="onTFSelect(event,0)"/>
-          <div class="tf-slot-lbl">H4</div>
-          <div class="tf-slot-icon" id="icon0">📸</div>
-          <div class="tf-slot-status" id="status0">Tap upload</div>
-          <img id="preview0" style="display:none;width:100%;border-radius:6px;margin-top:4px"/>
-        </div>
-
-        <!-- H1 -->
-        <div class="tf-slot" id="slot1" onclick="triggerUpload(1)">
-          <input type="file" id="file1" accept="image/*" style="display:none" onchange="onTFSelect(event,1)"/>
-          <div class="tf-slot-lbl">H1</div>
-          <div class="tf-slot-icon" id="icon1">📸</div>
-          <div class="tf-slot-status" id="status1">Tap upload</div>
-          <img id="preview1" style="display:none;width:100%;border-radius:6px;margin-top:4px"/>
-        </div>
-
-        <!-- M15 -->
-        <div class="tf-slot" id="slot2" onclick="triggerUpload(2)">
-          <input type="file" id="file2" accept="image/*" style="display:none" onchange="onTFSelect(event,2)"/>
-          <div class="tf-slot-lbl">M15</div>
-          <div class="tf-slot-icon" id="icon2">📸</div>
-          <div class="tf-slot-status" id="status2">Tap upload</div>
-          <img id="preview2" style="display:none;width:100%;border-radius:6px;margin-top:4px"/>
-        </div>
-
-      </div>
-
-      <!-- Uploaded count indicator -->
-      <div id="uploadCount" style="font-size:10px;color:var(--fg3);text-align:center;margin-bottom:6px"></div>
-
-      <!-- Clear all button -->
-      <button id="clearBtn" onclick="clearAllCharts()" style="display:none;width:100%;padding:6px;background:transparent;border:1px solid var(--b2);border-radius:8px;color:var(--fg3);font-size:11px;font-family:'Instrument Sans',sans-serif;cursor:pointer;margin-bottom:6px">✕ Clear semua chart</button>
-
-      <button class="vision-btn" id="visionBtn" onclick="runVision()" disabled>
-        <span id="visionIco">◎</span> Analyse dengan Claude AI
-      </button>
+    <!-- M15 -->
+    <div class="tf-slot" id="slot2" onclick="triggerUpload(2)">
+      <input type="file" id="file2" accept="image/*" style="display:none" onchange="onTFSelect(event,2)"/>
+      <div class="tf-slot-lbl">M15</div>
+      <div class="tf-slot-icon" id="icon2">📸</div>
+      <div class="tf-slot-status" id="status2">Tap upload</div>
+      <img id="preview2" style="display:none;width:100%;border-radius:6px;margin-top:4px"/>
     </div>
 
-    <!-- VISION RESULT -->
-    <div class="sec" id="visionSec" style="display:none">
-      <div class="sec-head"><div class="sec-dot" style="background:var(--up)"></div><div class="sec-title">CLAUDE CHART READING</div></div>
-      <div id="visionCard"></div>
-    </div>
+  </div>
 
-    <!-- SIGNAL -->
-    <div class="sec">
-      <div class="sec-head"><div class="sec-dot"></div><div class="sec-title">SIGNAL</div></div>
-      <div id="sigCard"><div class="ld-wrap"><div class="ld-spin"></div><span class="ld-text">Fetching 1H + 15m data...</span></div></div>
-    </div>
+  <!-- Uploaded count indicator -->
+  <div id="uploadCount" style="font-size:10px;color:var(--fg3);text-align:center;margin-bottom:6px"></div>
 
-    <!-- SNR -->
-    <div class="sec" id="snrSec" style="display:none">
-      <div class="sec-head"><div class="sec-dot"></div><div class="sec-title">SUPPORT & RESISTANCE</div></div>
-      <div class="card" id="snrCard"></div>
-    </div>
+  <!-- Clear all button -->
+  <button id="clearBtn" onclick="clearAllCharts()" style="display:none;width:100%;padding:6px;background:transparent;border:1px solid var(--b2);border-radius:8px;color:var(--fg3);font-size:11px;font-family:'Instrument Sans',sans-serif;cursor:pointer;margin-bottom:6px">✕ Clear semua chart</button>
 
-    <!-- INDICATORS -->
-    <div class="sec" id="indSec" style="display:none">
-      <div class="sec-head"><div class="sec-dot"></div><div class="sec-title">INDICATORS</div></div>
-      <div class="card"><div class="ind-grid" id="indGrid"></div></div>
-    </div>
+  <button class="vision-btn" id="visionBtn" onclick="runVision()" disabled>
+    <span id="visionIco">◎</span> Analyse dengan Claude AI
+  </button>
+</div>
 
-    <!-- HISTORY -->
-    <div class="sec" id="histSec" style="display:none">
-      <div class="sec-head"><div class="sec-dot"></div><div class="sec-title">HISTORY</div></div>
-      <div class="card">
-        <table><thead><tr><th>DIR</th><th>ENTRY</th><th>TP</th><th>SL</th><th>RR</th><th>RESULT</th></tr></thead>
-        <tbody id="histBody"></tbody></table>
-      </div>
-    </div>
+<!-- VISION RESULT -->
+<div class="sec" id="visionSec" style="display:none">
+  <div class="sec-head"><div class="sec-dot" style="background:var(--up)"></div><div class="sec-title">CLAUDE CHART READING</div></div>
+  <div id="visionCard"></div>
+</div>
 
-    <div id="lastUpd" style="text-align:center;font-size:10px;color:var(--fg4);padding:12px 0"></div>
+<!-- SIGNAL -->
+<div class="sec">
+  <div class="sec-head"><div class="sec-dot"></div><div class="sec-title">SIGNAL</div></div>
+  <div id="sigCard"><div class="ld-wrap"><div class="ld-spin"></div><span class="ld-text">Fetching 1H + 15m data...</span></div></div>
+</div>
+
+<!-- STRUCTURE / BOS -->
+<div class="sec" id="structureSec" style="display:none">
+  <div class="sec-head"><div class="sec-dot" style="background:var(--blue)"></div><div class="sec-title">MARKET STRUCTURE</div></div>
+  <div class="card" id="structureCard"></div>
+</div>
+
+<!-- SNR -->
+<div class="sec" id="snrSec" style="display:none">
+  <div class="sec-head"><div class="sec-dot"></div><div class="sec-title">SUPPORT & RESISTANCE</div></div>
+  <div class="card" id="snrCard"></div>
+</div>
+
+<!-- INDICATORS -->
+<div class="sec" id="indSec" style="display:none">
+  <div class="sec-head"><div class="sec-dot"></div><div class="sec-title">INDICATORS</div></div>
+  <div class="card"><div class="ind-grid" id="indGrid"></div></div>
+</div>
+
+<!-- HISTORY -->
+<div class="sec" id="histSec" style="display:none">
+  <div class="sec-head"><div class="sec-dot"></div><div class="sec-title">HISTORY</div></div>
+  <div class="card">
+    <table><thead><tr><th>DIR</th><th>ENTRY</th><th>TP</th><th>SL</th><th>RR</th><th>RESULT</th></tr></thead>
+    <tbody id="histBody"></tbody></table>
+  </div>
+</div>
+
+<div id="lastUpd" style="text-align:center;font-size:10px;color:var(--fg4);padding:12px 0"></div>
+```
+
   </div>
 </div>
 
 <!-- ===== STATS ===== -->
+
 <div class="page" id="pgStats">
   <div class="scroll" style="padding:12px">
     <div style="font-size:18px;font-weight:700;margin-bottom:12px">Win Rate</div>
@@ -396,6 +411,7 @@ td{font-size:11px;color:var(--fg2);padding:8px 4px;border-top:1px solid var(--b1
 </div>
 
 <!-- ===== ALERTS ===== -->
+
 <div class="page" id="pgAlerts">
   <div class="scroll" style="padding:12px">
     <div style="font-size:18px;font-weight:700;margin-bottom:12px">Price Alerts</div>
@@ -415,27 +431,32 @@ td{font-size:11px;color:var(--fg2);padding:8px 4px;border-top:1px solid var(--b1
 </div>
 
 <!-- ===== NEWS + CALENDAR ===== -->
+
 <div class="page" id="pgNews">
   <div class="scroll" style="padding:12px">
     <div style="font-size:18px;font-weight:700;margin-bottom:12px">News & Calendar</div>
 
-    <!-- ECONOMIC CALENDAR -->
-    <div style="font-size:11px;font-weight:600;color:var(--fg3);letter-spacing:.5px;margin-bottom:8px">ECONOMIC CALENDAR — HIGH IMPACT</div>
-    <div id="calCard" class="card">
-      <div class="ld-wrap"><div class="ld-spin"></div><span class="ld-text">Loading calendar...</span></div>
-    </div>
+```
+<!-- ECONOMIC CALENDAR -->
+<div style="font-size:11px;font-weight:600;color:var(--fg3);letter-spacing:.5px;margin-bottom:8px">ECONOMIC CALENDAR — HIGH IMPACT</div>
+<div id="calCard" class="card">
+  <div class="ld-wrap"><div class="ld-spin"></div><span class="ld-text">Loading calendar...</span></div>
+</div>
 
-    <!-- NEWS FILTER WARNING -->
-    <div id="newsWarning" style="display:none;background:var(--dnBg);border:1px solid var(--dnBd);border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:var(--dn)">
-      ⚠ <b>HIGH IMPACT NEWS</b> dalam masa 1 jam — pertimbangkan untuk tidak trade sekarang
-    </div>
+<!-- NEWS FILTER WARNING -->
+<div id="newsWarning" style="display:none;background:var(--dnBg);border:1px solid var(--dnBd);border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:var(--dn)">
+  ⚠ <b>HIGH IMPACT NEWS</b> dalam masa 1 jam — pertimbangkan untuk tidak trade sekarang
+</div>
 
-    <div style="font-size:11px;font-weight:600;color:var(--fg3);letter-spacing:.5px;margin-bottom:8px;margin-top:4px">GOLD MARKET NEWS</div>
-    <div class="card" id="newsCard"><div class="ld-wrap"><div class="ld-spin"></div><span class="ld-text">Loading news...</span></div></div>
+<div style="font-size:11px;font-weight:600;color:var(--fg3);letter-spacing:.5px;margin-bottom:8px;margin-top:4px">GOLD MARKET NEWS</div>
+<div class="card" id="newsCard"><div class="ld-wrap"><div class="ld-spin"></div><span class="ld-text">Loading news...</span></div></div>
+```
+
   </div>
 </div>
 
 <!-- ===== SETTINGS ===== -->
+
 <div class="page" id="pgSettings">
   <div class="scroll" style="padding:12px">
     <div style="font-size:18px;font-weight:700;margin-bottom:12px">Settings</div>
@@ -493,6 +514,7 @@ td{font-size:11px;color:var(--fg2);padding:8px 4px;border-top:1px solid var(--b1
 </div>
 
 <!-- NAVBAR -->
+
 <nav class="nav">
   <div class="nav-item active" onclick="go('Home')" id="nHome"><span class="nav-ico">⊞</span><span>Home</span></div>
   <div class="nav-item" onclick="go('Stats')" id="nStats"><span class="nav-ico">◎</span><span>Stats</span></div>
@@ -570,6 +592,109 @@ function findSwingPoints(candles,lookback=10){
   return{swingHigh:lastSwingHigh,swingLow:lastSwingLow};
 }
 
+// ============================================================
+// BOS — Break of Structure Detection
+// ============================================================
+function detectBOS(candles){
+  const n=candles.length;
+  if(n<20)return{bos:null,choch:null,structure:'Unknown'};
+
+  // Build swing points array (all swings, not just last)
+  const h=candles.map(c=>c.high),l=candles.map(c=>c.low),c=candles.map(x=>x.close);
+  const swingHighs=[],swingLows=[];
+
+  for(let i=3;i<n-3;i++){
+    if(h[i]>h[i-1]&&h[i]>h[i-2]&&h[i]>h[i-3]&&h[i]>h[i+1]&&h[i]>h[i+2]&&h[i]>h[i+3])
+      swingHighs.push({price:h[i],idx:i});
+    if(l[i]<l[i-1]&&l[i]<l[i-2]&&l[i]<l[i-3]&&l[i]<l[i+1]&&l[i]<l[i+2]&&l[i]<l[i+3])
+      swingLows.push({price:l[i],idx:i});
+  }
+
+  const curPrice=c[n-1];
+  const curHigh=h[n-1];
+  const curLow=l[n-1];
+
+  // Determine market structure from last 3 swing highs/lows
+  let structure='Ranging';
+  let bos=null,choch=null;
+
+  if(swingHighs.length>=2&&swingLows.length>=2){
+    const lastHH=swingHighs[swingHighs.length-1];
+    const prevHH=swingHighs[swingHighs.length-2];
+    const lastLL=swingLows[swingLows.length-1];
+    const prevLL=swingLows[swingLows.length-2];
+
+    const makingHH=lastHH.price>prevHH.price; // Higher Highs
+    const makingHL=lastLL.price>prevLL.price;  // Higher Lows
+    const makingLL=lastLL.price<prevLL.price;  // Lower Lows
+    const makingLH=lastHH.price<prevHH.price;  // Lower Highs
+
+    if(makingHH&&makingHL)structure='Bullish Structure';
+    else if(makingLL&&makingLH)structure='Bearish Structure';
+    else if(makingHH&&makingLL)structure='Expanding';
+    else structure='Ranging';
+
+    // BOS Bearish: price closes below last swing low (structure break)
+    if(structure==='Bearish Structure'||structure==='Expanding'){
+      if(curPrice<lastLL.price){
+        bos={type:'Bearish',level:lastLL.price,candle:n-1,
+          desc:`BOS Bearish: Close di bawah swing low ${lastLL.price.toFixed(2)}`};
+      }
+    }
+
+    // BOS Bullish: price closes above last swing high
+    if(structure==='Bullish Structure'||structure==='Expanding'){
+      if(curPrice>lastHH.price){
+        bos={type:'Bullish',level:lastHH.price,candle:n-1,
+          desc:`BOS Bullish: Close di atas swing high ${lastHH.price.toFixed(2)}`};
+      }
+    }
+
+    // CHoCH — Change of Character (early reversal signal)
+    // Bearish CHoCH: in bullish structure, price closes below last higher low
+    if(structure==='Bullish Structure'&&curPrice<lastLL.price){
+      choch={type:'Bearish',level:lastLL.price,
+        desc:`CHoCH Bearish: Structure flip — close bawah HL ${lastLL.price.toFixed(2)}`};
+    }
+    // Bullish CHoCH: in bearish structure, price closes above last lower high
+    if(structure==='Bearish Structure'&&curPrice>lastHH.price){
+      choch={type:'Bullish',level:lastHH.price,
+        desc:`CHoCH Bullish: Structure flip — close atas LH ${lastHH.price.toFixed(2)}`};
+    }
+  }
+
+  // Recent BOS check (last 5 candles)
+  const recentBOS=checkRecentBOS(candles,swingHighs,swingLows,5);
+
+  return{bos,choch,structure,swingHighs,swingLows,recentBOS};
+}
+
+function checkRecentBOS(candles,swingHighs,swingLows,lookback){
+  const n=candles.length;
+  const recent=candles.slice(-lookback);
+  const results=[];
+
+  // Check if any recent candle closed below a swing low (bearish BOS)
+  for(const sl of swingLows.slice(-5)){
+    for(let i=0;i<recent.length;i++){
+      if(recent[i].close<sl.price&&(i===0||recent[i-1].close>=sl.price)){
+        results.push({type:'Bearish',level:sl.price,candlesAgo:lookback-i,
+          desc:`Bearish BOS ${lookback-i} candle lepas @ ${sl.price.toFixed(2)}`});
+      }
+    }
+  }
+  // Check if any recent candle closed above a swing high (bullish BOS)
+  for(const sh of swingHighs.slice(-5)){
+    for(let i=0;i<recent.length;i++){
+      if(recent[i].close>sh.price&&(i===0||recent[i-1].close<=sh.price)){
+        results.push({type:'Bullish',level:sh.price,candlesAgo:lookback-i,
+          desc:`Bullish BOS ${lookback-i} candle lepas @ ${sh.price.toFixed(2)}`});
+      }
+    }
+  }
+  return results.sort((a,b)=>a.candlesAgo-b.candlesAgo);
+}
+
 function ema(d,p){if(d.length<p)return d.map(()=>null);const k=2/(p+1);let e=d.slice(0,p).reduce((a,b)=>a+b)/p;const r=Array(p-1).fill(null);r.push(e);for(let i=p;i<d.length;i++){e=d[i]*k+e*(1-k);r.push(e)}return r}
 function sma(d,p){return d.map((_,i)=>i<p-1?null:d.slice(i-p+1,i+1).reduce((a,b)=>a+b)/p)}
 function calcRSI(d,p=14){if(d.length<=p)return d.map(()=>50);const r=Array(p).fill(null);let g=0,l=0;for(let i=1;i<=p;i++){const x=d[i]-d[i-1];x>0?g+=x:l-=x}let ag=g/p,al=l/p;r.push(al===0?100:100-100/(1+ag/al));for(let i=p+1;i<d.length;i++){const x=d[i]-d[i-1];ag=(ag*(p-1)+Math.max(x,0))/p;al=(al*(p-1)+Math.max(-x,0))/p;r.push(al===0?100:100-100/(1+ag/al))}return r}
@@ -577,7 +702,7 @@ function calcMACD(d){const e12=ema(d,12),e26=ema(d,26);const ml=e12.map((v,i)=>v
 function calcBB(d,p=20){const sm=sma(d,p);return sm.map((m,i)=>{if(m==null)return{u:null,m:null,l:null};const sl=d.slice(i-p+1,i+1),st=Math.sqrt(sl.reduce((s,v)=>s+(v-m)**2,0)/p);return{u:m+2*st,m,l:m-2*st}})}
 function calcATR(h,l,c,p=14){const tr=c.map((v,i)=>i===0?h[i]-l[i]:Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1])));if(tr.length<p)return tr.reduce((a,b)=>a+b)/tr.length;let a=tr.slice(0,p).reduce((x,y)=>x+y)/p;for(let i=p+1;i<tr.length;i++)a=(a*(p-1)+tr[i])/p;return a}
 function stochRSI(rs,p=14){return rs.map((v,i)=>{if(v==null||i<p)return null;const sl=rs.slice(i-p+1,i+1).filter(x=>x!=null);if(sl.length<p)return null;const mn=Math.min(...sl),mx=Math.max(...sl);return mx===mn?0:(v-mn)/(mx-mn)})}
-function computeInd(candles){const c=candles.map(x=>x.close),h=candles.map(x=>x.high),l=candles.map(x=>x.low);const n=c.length-1;const e50=ema(c,50),e200=ema(c,200),s20=sma(c,20);const rs=calcRSI(c),mc=calcMACD(c),bo=calcBB(c),at=calcATR(h,l,c),sr=stochRSI(rs);const adx=calcADX(h,l,c);const vol=calcVolumeScore(candles);const swing=findSwingPoints(candles);return{close:c[n],open:c[0],ema50:e50[n],ema200:e200[n],sma20:s20[n],rsi:rs[n],macd:mc,bb:bo[n],atr:at,stochRsi:sr[n],adx,vol,swing,highs:h,lows:l,closes:c}}
+function computeInd(candles){const c=candles.map(x=>x.close),h=candles.map(x=>x.high),l=candles.map(x=>x.low);const n=c.length-1;const e50=ema(c,50),e200=ema(c,200),s20=sma(c,20);const rs=calcRSI(c),mc=calcMACD(c),bo=calcBB(c),at=calcATR(h,l,c),sr=stochRSI(rs);const adx=calcADX(h,l,c);const vol=calcVolumeScore(candles);const swing=findSwingPoints(candles);const bos=detectBOS(candles);return{close:c[n],open:c[0],ema50:e50[n],ema200:e200[n],sma20:s20[n],rsi:rs[n],macd:mc,bb:bo[n],atr:at,stochRsi:sr[n],adx,vol,swing,bos,highs:h,lows:l,closes:c}}
 function biasScore(ind){
   if(!ind||!ind.ema50||!ind.ema200)return{dir:'Neutral',b:0,br:0,trending:false};
   let b=0,br=0;
@@ -685,6 +810,34 @@ function evaluate(b1h,b15m,ind,zones,at,bs1h,bs15m){
     reasons.push(`ADX ${adxVal.toFixed(1)} terlalu rendah (<18) — market ranging, bukan trending`);
   }else checks.adx=true;
 
+  // BOS — structure confirmation (highly recommended but not blocking)
+  const bosData=ind.bos||{};
+  const recentBOS=bosData.recentBOS||[];
+  const bosAligned=recentBOS.some(b=>
+    (dir==='Bullish'&&b.type==='Bullish')||
+    (dir==='Bearish'&&b.type==='Bearish')
+  );
+  const chochAligned=bosData.choch&&(
+    (dir==='Bullish'&&bosData.choch.type==='Bullish')||
+    (dir==='Bearish'&&bosData.choch.type==='Bearish')
+  );
+  const bosActive=bosData.bos&&(
+    (dir==='Bullish'&&bosData.bos.type==='Bullish')||
+    (dir==='Bearish'&&bosData.bos.type==='Bearish')
+  );
+  // BOS adds confidence bonus — no blocking unless structure completely wrong
+  if(bosActive||bosAligned){checks.bos=true;}
+  else if(bosData.structure&&bosData.structure!=='Ranging'){
+    const structureOK=
+      (dir==='Bullish'&&bosData.structure.includes('Bullish'))||
+      (dir==='Bearish'&&bosData.structure.includes('Bearish'))||
+      bosData.structure==='Expanding';
+    if(!structureOK){
+      checks.bos=false;
+      reasons.push(`Structure ${bosData.structure} — berlawanan dengan direction ${dir}`);
+    }else checks.bos=true;
+  }else checks.bos=true;
+
   // Volume — if available, require above average
   if(ind.vol&&ind.vol.score>0){
     if(!ind.vol.aboveAvg&&adxVal<25){
@@ -766,6 +919,9 @@ BB_upper:${ind.bb?.u?.toFixed(2)} BB_lower:${ind.bb?.l?.toFixed(2)} ATR:${ind.at
 ADX:${adxVal.toFixed(1)} (${adxVal>=25?'Strong trend':adxVal>=18?'Moderate':'Ranging'}) PDI:${ind.adx?.pdi?.toFixed(1)||0} NDI:${ind.adx?.ndi?.toFixed(1)||0}
 Volume:${ind.vol?.note||'N/A'}
 SwingHigh:${ind.swing?.swingHigh?.toFixed(2)||'N/A'} SwingLow:${ind.swing?.swingLow?.toFixed(2)||'N/A'}
+Market Structure:${ind.bos?.structure||'Unknown'}
+BOS:${ind.bos?.bos?ind.bos.bos.desc:'Tiada'} CHoCH:${ind.bos?.choch?ind.bos.choch.desc:'Tiada'}
+Recent BOS:${ind.bos?.recentBOS?.slice(0,2).map(b=>b.desc).join(' | ')||'Tiada'}
 MTF: 1H=${b1h}, 15m=${b15m} | Direction confirmed: ${d}
 
 Analisa keseluruhan 50 candle structure. Balas JSON sahaja:
@@ -1101,12 +1257,17 @@ async function handleRefresh(){
       // If AI disagrees with direction or confidence too low, skip
       if(ai.trend==='Neutral'||ai.confidence<S.prefs.minConf){
         renderNoSig(price,b1h,b15m,{...gate,ok:false,reason:`AI confidence ${ai.confidence}% < min ${S.prefs.minConf}% atau trend Neutral`,bScore:gate.bScore,brScore:gate.brScore},patterns);
-        renderSNR(zones,price,i15m.atr);renderInd(i15m,price);renderHist();updateTabs();
+        renderSNR(zones,price,i15m.atr);renderInd(i15m,price);renderHist();document.getElementById('structureSec').style.display='block';renderStructure(i15m);updateTabs();
         document.getElementById('lastUpd').textContent='Updated: '+new Date().toLocaleTimeString('ms-MY');
         return;
       }
       const st=sltp(price,gate.dir,zones,i15m.atr,i15m);
-      const entry={...ai,...st,dir:gate.dir,direction:gate.dir,price,zone:gate.zone,mtf:`1H:${b1h} 15m:${b15m}`,time:new Date(),symbol:S.label,status:'active',id:Date.now(),result:null,visionUsed:false};
+      const bosInfo={
+  structure:i15m.bos?.structure||'Unknown',
+  hasBOS:!!(i15m.bos?.recentBOS?.some(b=>(gate.dir==='Bullish'&&b.type==='Bullish')||(gate.dir==='Bearish'&&b.type==='Bearish'))||i15m.bos?.bos),
+  desc:i15m.bos?.recentBOS?.[0]?.desc||i15m.bos?.bos?.desc||''
+};
+const entry={...ai,...st,dir:gate.dir,direction:gate.dir,price,zone:gate.zone,mtf:`1H:${b1h} 15m:${b15m}`,time:new Date(),symbol:S.label,status:'active',id:Date.now(),result:null,visionUsed:false,bosInfo};
       S.active=entry;S.hist.unshift(entry);if(S.hist.length>100)S.hist=S.hist.slice(0,100);saveH();
       sendN(`🎯 ${gate.dir}!`,`${S.label} @ ${price.toFixed(2)} | TP:${st.tp1} SL:${st.sl}`);
       renderSigCard(entry,patterns);
@@ -1199,6 +1360,7 @@ function renderSigCard(entry,patterns){
     <div class="row"><span class="rl">Target 2</span><span class="rv" style="color:var(--up)">${entry.tp2?.toFixed(2)}</span></div>
     <div class="row"><span class="rl">Risk:Reward</span><span class="rv" style="color:${rrc}">1:${entry.rr}</span></div>
     <div class="row"><span class="rl">Zone</span><span class="rv" style="color:var(--gold);font-size:10px">${entry.zone?entry.zone.src+' ('+entry.zone.type+')':'N/A'}</span></div>
+    ${entry.bosInfo?`<div class="row"><span class="rl">Structure</span><span class="rv" style="font-size:10px;color:${entry.bosInfo.hasBOS?'var(--up)':'var(--warn)'}">${entry.bosInfo.structure} ${entry.bosInfo.hasBOS?'✓ BOS':'⚠ No BOS'}</span></div>`:''}
     <div class="divider"></div>
     <div style="display:flex;align-items:center;gap:12px">
       <div class="conf-ring" style="color:${cc}"><div style="position:absolute;inset:0;border-radius:50%;border:3px solid transparent;border-top-color:${cc};border-right-color:${cc}"></div>${entry.confidence}%</div>
@@ -1212,6 +1374,26 @@ function renderSigCard(entry,patterns){
     <div style="margin-top:8px;padding:8px;background:var(--upBg);border:1px solid var(--upBd);border-radius:8px;font-size:10px;color:var(--up)">📸 Upload chart screenshot untuk Claude Vision sahkan signal</div>
     <div style="font-size:9px;color:var(--fg4);margin-top:8px">${new Date(entry.time).toLocaleString('ms-MY')}</div>
   </div>`;
+}
+
+function renderStructure(ind){
+  if(!ind?.bos)return;
+  const bos=ind.bos;
+  const strColor=bos.structure?.includes('Bullish')?'var(--up)':bos.structure?.includes('Bearish')?'var(--dn)':'var(--warn)';
+  const recentBosHtml=bos.recentBOS?.slice(0,2).map(b=>`
+    <div style="font-size:10px;color:${b.type==='Bullish'?'var(--up)':'var(--dn)'};margin-top:3px">
+      ${b.type==='Bullish'?'↑':'↓'} ${b.desc}
+    </div>`).join('')||'';
+  const chochHtml=bos.choch?`<div style="font-size:10px;color:${bos.choch.type==='Bullish'?'var(--up)':'var(--dn)'};margin-top:3px">⚡ ${bos.choch.desc}</div>`:'';
+
+  const el=document.getElementById('structureCard');
+  if(!el)return;
+  el.innerHTML=`
+    <div class="row"><span class="rl">Structure</span><span class="rv" style="color:${strColor}">${bos.structure||'Unknown'}</span></div>
+    ${bos.bos?`<div style="font-size:10px;color:${bos.bos.type==='Bullish'?'var(--up)':'var(--dn)'};margin-bottom:3px">🔴 ${bos.bos.desc}</div>`:''}
+    ${chochHtml}
+    ${recentBosHtml}
+    ${!bos.bos&&!bos.choch&&!recentBosHtml?'<div style="font-size:10px;color:var(--fg4)">Tiada BOS/CHoCH terkini</div>':''}`;
 }
 
 function renderSNR(zones,price,at){if(!zones?.length){showEl('snrSec',false);return}showEl('snrSec',true);
@@ -1446,5 +1628,6 @@ if('Notification'in window&&Notification.permission==='granted')S.notif=true;
 // ========== INIT ==========
 (function(){updateSession();if(S.hist.length){renderHist();renderWR()}loadSetUI();renderAlerts();loadChart();handleRefresh();setTimeout(fetchCalendar,3000);})();
 </script>
+
 </body>
 </html>
