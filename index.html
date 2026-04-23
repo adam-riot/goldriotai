@@ -520,6 +520,56 @@ const S={
 if(S.hist.length&&S.hist[0].status==='active')S.active=S.hist[0];
 
 // ========== TA ENGINE ==========
+// ADX — measures trend strength (>25 = trending, <20 = ranging)
+function calcADX(h,l,c,p=14){
+  if(h.length<p+1)return{adx:0,pdi:0,ndi:0};
+  const tr=[],pdm=[],ndm=[];
+  for(let i=1;i<h.length;i++){
+    const ht=Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1]));
+    const up=h[i]-h[i-1],dn=l[i-1]-l[i];
+    tr.push(ht);
+    pdm.push(up>dn&&up>0?up:0);
+    ndm.push(dn>up&&dn>0?dn:0);
+  }
+  // Smoothed averages
+  const smooth=(arr,p)=>{
+    let s=arr.slice(0,p).reduce((a,b)=>a+b,0);
+    const r=[s];
+    for(let i=p;i<arr.length;i++){s=s-s/p+arr[i];r.push(s);}
+    return r;
+  };
+  const atr14=smooth(tr,p),pdi14=smooth(pdm,p),ndi14=smooth(ndm,p);
+  const pdiLine=pdi14.map((v,i)=>atr14[i]?100*v/atr14[i]:0);
+  const ndiLine=ndi14.map((v,i)=>atr14[i]?100*v/atr14[i]:0);
+  const dx=pdiLine.map((v,i)=>{const s=v+ndiLine[i];return s?100*Math.abs(v-ndiLine[i])/s:0;});
+  const adxSmooth=smooth(dx,p);
+  const last=adxSmooth.length-1;
+  return{adx:adxSmooth[last]||0,pdi:pdiLine[pdiLine.length-1]||0,ndi:ndiLine[ndiLine.length-1]||0};
+}
+
+// Volume analysis — above average = confirmation
+function calcVolumeScore(candles){
+  if(!candles[0]?.volume)return{score:0,aboveAvg:false,note:'No volume data'};
+  const vols=candles.map(c=>c.volume||0);
+  const avg=vols.slice(-20).reduce((a,b)=>a+b,0)/20;
+  const last=vols[vols.length-1];
+  const ratio=avg>0?last/avg:1;
+  return{score:ratio,aboveAvg:ratio>=1.0,note:`Vol ${ratio.toFixed(1)}x avg`};
+}
+
+// Swing High/Low for SL/TP
+function findSwingPoints(candles,lookback=10){
+  const h=candles.map(c=>c.high),l=candles.map(c=>c.low);
+  const n=candles.length;
+  let lastSwingHigh=null,lastSwingLow=null;
+  for(let i=n-lookback;i<n-2;i++){
+    if(i<2)continue;
+    if(h[i]>h[i-1]&&h[i]>h[i-2]&&h[i]>h[i+1]&&h[i]>h[i+2])lastSwingHigh=h[i];
+    if(l[i]<l[i-1]&&l[i]<l[i-2]&&l[i]<l[i+1]&&l[i]<l[i+2])lastSwingLow=l[i];
+  }
+  return{swingHigh:lastSwingHigh,swingLow:lastSwingLow};
+}
+
 function ema(d,p){if(d.length<p)return d.map(()=>null);const k=2/(p+1);let e=d.slice(0,p).reduce((a,b)=>a+b)/p;const r=Array(p-1).fill(null);r.push(e);for(let i=p;i<d.length;i++){e=d[i]*k+e*(1-k);r.push(e)}return r}
 function sma(d,p){return d.map((_,i)=>i<p-1?null:d.slice(i-p+1,i+1).reduce((a,b)=>a+b)/p)}
 function calcRSI(d,p=14){if(d.length<=p)return d.map(()=>50);const r=Array(p).fill(null);let g=0,l=0;for(let i=1;i<=p;i++){const x=d[i]-d[i-1];x>0?g+=x:l-=x}let ag=g/p,al=l/p;r.push(al===0?100:100-100/(1+ag/al));for(let i=p+1;i<d.length;i++){const x=d[i]-d[i-1];ag=(ag*(p-1)+Math.max(x,0))/p;al=(al*(p-1)+Math.max(-x,0))/p;r.push(al===0?100:100-100/(1+ag/al))}return r}
@@ -527,18 +577,23 @@ function calcMACD(d){const e12=ema(d,12),e26=ema(d,26);const ml=e12.map((v,i)=>v
 function calcBB(d,p=20){const sm=sma(d,p);return sm.map((m,i)=>{if(m==null)return{u:null,m:null,l:null};const sl=d.slice(i-p+1,i+1),st=Math.sqrt(sl.reduce((s,v)=>s+(v-m)**2,0)/p);return{u:m+2*st,m,l:m-2*st}})}
 function calcATR(h,l,c,p=14){const tr=c.map((v,i)=>i===0?h[i]-l[i]:Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1])));if(tr.length<p)return tr.reduce((a,b)=>a+b)/tr.length;let a=tr.slice(0,p).reduce((x,y)=>x+y)/p;for(let i=p+1;i<tr.length;i++)a=(a*(p-1)+tr[i])/p;return a}
 function stochRSI(rs,p=14){return rs.map((v,i)=>{if(v==null||i<p)return null;const sl=rs.slice(i-p+1,i+1).filter(x=>x!=null);if(sl.length<p)return null;const mn=Math.min(...sl),mx=Math.max(...sl);return mx===mn?0:(v-mn)/(mx-mn)})}
-function computeInd(candles){const c=candles.map(x=>x.close),h=candles.map(x=>x.high),l=candles.map(x=>x.low);const n=c.length-1;const e50=ema(c,50),e200=ema(c,200),s20=sma(c,20);const rs=calcRSI(c),mc=calcMACD(c),bo=calcBB(c),at=calcATR(h,l,c),sr=stochRSI(rs);return{close:c[n],open:c[0],ema50:e50[n],ema200:e200[n],sma20:s20[n],rsi:rs[n],macd:mc,bb:bo[n],atr:at,stochRsi:sr[n],highs:h,lows:l,closes:c}}
+function computeInd(candles){const c=candles.map(x=>x.close),h=candles.map(x=>x.high),l=candles.map(x=>x.low);const n=c.length-1;const e50=ema(c,50),e200=ema(c,200),s20=sma(c,20);const rs=calcRSI(c),mc=calcMACD(c),bo=calcBB(c),at=calcATR(h,l,c),sr=stochRSI(rs);const adx=calcADX(h,l,c);const vol=calcVolumeScore(candles);const swing=findSwingPoints(candles);return{close:c[n],open:c[0],ema50:e50[n],ema200:e200[n],sma20:s20[n],rsi:rs[n],macd:mc,bb:bo[n],atr:at,stochRsi:sr[n],adx,vol,swing,highs:h,lows:l,closes:c}}
 function biasScore(ind){
-  if(!ind||!ind.ema50||!ind.ema200)return{dir:'Neutral',b:0,br:0};
+  if(!ind||!ind.ema50||!ind.ema200)return{dir:'Neutral',b:0,br:0,trending:false};
   let b=0,br=0;
-  if(ind.close>ind.ema200)b+=3;else br+=3;  // Weight 3 — primary
-  if(ind.close>ind.ema50)b+=2;else br+=2;   // Weight 2
-  if(ind.ema50>ind.ema200)b++;else br++;     // EMA cross
-  if(ind.close>ind.sma20)b++;else br++;      // Short term
-  if(ind.macd.hist>0)b++;else if(ind.macd.hist<0)br++; // MACD
-  if(ind.rsi>52)b++;else if(ind.rsi<48)br++;            // RSI
+  if(ind.close>ind.ema200)b+=3;else br+=3;
+  if(ind.close>ind.ema50)b+=2;else br+=2;
+  if(ind.ema50>ind.ema200)b++;else br++;
+  if(ind.close>ind.sma20)b++;else br++;
+  if(ind.macd.hist>0)b++;else if(ind.macd.hist<0)br++;
+  if(ind.rsi>52)b++;else if(ind.rsi<48)br++;
+  // ADX directional bonus
+  if(ind.adx){
+    if(ind.adx.pdi>ind.adx.ndi)b++;else br++;
+  }
   const dir=b>=4?'Bullish':br>=4?'Bearish':'Neutral';
-  return{dir,b,br};
+  const trending=(ind.adx?.adx||0)>=20; // ADX >= 20 means trending
+  return{dir,b,br,trending,adx:ind.adx?.adx||0};
 }
 function bias(ind){return biasScore(ind).dir;}
 
@@ -620,18 +675,71 @@ function evaluate(b1h,b15m,ind,zones,at,bs1h,bs15m){
   else if(dir==='Bearish'&&ind.rsi<15){checks.rsi=false;reasons.push('RSI oversold <15');}
   else checks.rsi=true;
 
-  // MACD — never blocks, informational only
+  // MACD — informational only
   checks.macd=true;
+
+  // ADX — trend strength filter
+  const adxVal=ind.adx?.adx||0;
+  if(adxVal<18){
+    checks.adx=false;
+    reasons.push(`ADX ${adxVal.toFixed(1)} terlalu rendah (<18) — market ranging, bukan trending`);
+  }else checks.adx=true;
+
+  // Volume — if available, require above average
+  if(ind.vol&&ind.vol.score>0){
+    if(!ind.vol.aboveAvg&&adxVal<25){
+      checks.volume=false;
+      reasons.push(`Volume ${ind.vol.note} — trend lemah dan volume rendah`);
+    }else checks.volume=true;
+  }else checks.volume=true; // skip if no volume data
 
   const fail=Object.values(checks).filter(v=>!v).length;
   if(fail>0)return{ok:false,reason:`${fail} syarat gagal`,checks,reasons,dir,bScore:(bs1h?.b||0)+(bs15m?.b||0),brScore:(bs1h?.br||0)+(bs15m?.br||0)};
   return{ok:true,dir,zone,checks,reasons,bScore:(bs1h?.b||0)+(bs15m?.b||0),brScore:(bs1h?.br||0)+(bs15m?.br||0)};
 }
-function sltp(price,dir,zones,at){
+function sltp(price,dir,zones,at,ind){
   let sl,tp1,tp2;
-  if(dir==='Bullish'){const sup=zones.filter(z=>(z.type==='Support'||z.type==='Demand')&&z.price<price).sort((a,b)=>b.price-a.price);sl=sup.length?+(sup[0].price-at*.2).toFixed(2):+(price-at*1.5).toFixed(2);tp1=+(price+at*1.5).toFixed(2);tp2=+(price+at*3).toFixed(2);}
-  else{const res=zones.filter(z=>(z.type==='Resistance'||z.type==='Supply')&&z.price>price).sort((a,b)=>a.price-b.price);sl=res.length?+(res[0].price+at*.2).toFixed(2):+(price+at*1.5).toFixed(2);tp1=+(price-at*1.5).toFixed(2);tp2=+(price-at*3).toFixed(2);}
-  const risk=Math.abs(price-sl),rew=Math.abs(tp1-price);return{sl,tp1,tp2,rr:risk>0?(rew/risk).toFixed(2):'0'};
+  const swing=ind?.swing||{};
+  const buf=at*0.3; // buffer beyond swing point
+
+  if(dir==='Bullish'){
+    // SL: below nearest swing low OR support zone — whichever is closer but logical
+    const sup=zones.filter(z=>(z.type==='Support'||z.type==='Demand')&&z.price<price).sort((a,b)=>b.price-a.price);
+    let slZone=sup.length?sup[0].price-buf:null;
+    let slSwing=swing.swingLow?swing.swingLow-buf:null;
+    // Use the higher of the two (tighter but still below structure)
+    if(slZone&&slSwing)sl=+Math.max(slZone,slSwing).toFixed(2);
+    else sl=+(slZone||slSwing||price-at*1.8).toFixed(2);
+    // TP: nearest resistance above
+    const res=zones.filter(z=>(z.type==='Resistance'||z.type==='Supply')&&z.price>price).sort((a,b)=>a.price-b.price);
+    tp1=res.length?+(res[0].price-buf).toFixed(2):+(price+at*1.5).toFixed(2);
+    tp2=res.length>1?+(res[1].price-buf).toFixed(2):+(price+at*3).toFixed(2);
+  }else{
+    // SL: above nearest swing high OR resistance zone
+    const res=zones.filter(z=>(z.type==='Resistance'||z.type==='Supply')&&z.price>price).sort((a,b)=>a.price-b.price);
+    let slZone=res.length?res[0].price+buf:null;
+    let slSwing=swing.swingHigh?swing.swingHigh+buf:null;
+    // Use the lower of the two (tighter but above structure)
+    if(slZone&&slSwing)sl=+Math.min(slZone,slSwing).toFixed(2);
+    else sl=+(slZone||slSwing||price+at*1.8).toFixed(2);
+    // TP: nearest support below
+    const sup=zones.filter(z=>(z.type==='Support'||z.type==='Demand')&&z.price<price).sort((a,b)=>b.price-a.price);
+    tp1=sup.length?+(sup[0].price+buf).toFixed(2):+(price-at*1.5).toFixed(2);
+    tp2=sup.length>1?+(sup[1].price+buf).toFixed(2):+(price-at*3).toFixed(2);
+  }
+
+  // Ensure minimum RR 1:1
+  const risk=Math.abs(price-sl);
+  const rew=Math.abs(tp1-price);
+  // If RR < 1:1, extend TP1
+  if(rew<risk){
+    if(dir==='Bullish')tp1=+(price+risk).toFixed(2);
+    else tp1=+(price-risk).toFixed(2);
+  }
+
+  const finalRisk=Math.abs(price-sl);
+  const finalRew=Math.abs(tp1-price);
+  return{sl,tp1,tp2,rr:finalRisk>0?(finalRew/finalRisk).toFixed(2):'0'};
 }
 
 // ========== API ==========
@@ -639,6 +747,33 @@ function canCall(){const now=Date.now();if(now-S.apiTime>60000)S.apiCnt=0;return
 function recordCall(n=1){S.apiCnt+=n;S.apiTime=Date.now();if(S.apiCnt>=5)showEl('rateWarn',true)}
 async function fetchPrice(){const r=await fetch(`https://api.twelvedata.com/price?symbol=${encodeURIComponent(S.sym)}&apikey=${S.tdKey}`);const j=await r.json();if(j.status==='error')throw new Error(j.message);return+j.price}
 async function fetchTF(iv,sz=55){const r=await fetch(`https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(S.sym)}&interval=${iv}&outputsize=${sz}&apikey=${S.tdKey}`);const j=await r.json();if(j.status==='error')throw new Error(j.message);return j.values.reverse().map(c=>({open:+c.open,high:+c.high,low:+c.low,close:+c.close,time:new Date(c.datetime).getTime()}))}
+
+// ========== RUN AI SIGNAL ANALYSIS ==========
+async function runAI(ind,b1h,b15m,gate,candles15m){
+  const d=gate.dir;
+  const last50=candles15m.slice(-50);
+  const ohlcv=last50.map(c=>`${c.open.toFixed(2)},${c.high.toFixed(2)},${c.low.toFixed(2)},${c.close.toFixed(2)}`).join('|');
+  const adxVal=ind.adx?.adx||0;
+  const pr=`Kau pakar teknikal XAUUSD. Analisa 50 candle M15 terbaru dan bagi signal.
+
+DATA (open,high,low,close — terbaru di hujung):
+${ohlcv}
+
+INDICATORS:
+EMA50:${ind.ema50?.toFixed(2)} EMA200:${ind.ema200?.toFixed(2)} SMA20:${ind.sma20?.toFixed(2)}
+RSI:${ind.rsi?.toFixed(1)} StochRSI:${((ind.stochRsi||0)*100).toFixed(1)} MACD_hist:${ind.macd.hist?.toFixed(4)}
+BB_upper:${ind.bb?.u?.toFixed(2)} BB_lower:${ind.bb?.l?.toFixed(2)} ATR:${ind.atr?.toFixed(2)}
+ADX:${adxVal.toFixed(1)} (${adxVal>=25?'Strong trend':adxVal>=18?'Moderate':'Ranging'}) PDI:${ind.adx?.pdi?.toFixed(1)||0} NDI:${ind.adx?.ndi?.toFixed(1)||0}
+Volume:${ind.vol?.note||'N/A'}
+SwingHigh:${ind.swing?.swingHigh?.toFixed(2)||'N/A'} SwingLow:${ind.swing?.swingLow?.toFixed(2)||'N/A'}
+MTF: 1H=${b1h}, 15m=${b15m} | Direction confirmed: ${d}
+
+Analisa keseluruhan 50 candle structure. Balas JSON sahaja:
+{"trend":"${d}","confidence":50-95,"analysis":"3-5 ayat BM — terangkan struktur 50 candle, EMA, ADX strength, kenapa bias ${d}","signal":"Buy|Sell|Neutral","entry_reason":"1 ayat ringkas"}`;
+
+  const res=await callClaude([{role:'user',content:pr}],1200);
+  return JSON.parse((res.content?.[0]?.text||'{}').replace(/\`\`\`json|\`\`\`/g,'').trim());
+}
 
 // ========== AI PROXY ==========
 // Claude proxy (for text signal analysis)
@@ -673,27 +808,35 @@ function triggerUpload(idx){document.getElementById('file'+idx).click();}
 
 function onTFSelect(e,idx){
   const f=e.target.files[0];if(!f)return;
-  // Compress image before storing
   const reader=new FileReader();
   reader.onload=ev=>{
     const img=new Image();
     img.onload=()=>{
-      // Resize to max 800px wide, compress to 60% quality
-      const MAX=800;
+      // Aggressive compression — max 600px, 50% quality
+      // Cloudflare Pages Function limit: 100MB but Anthropic image limit is ~5MB per image
+      const MAX=600;
       let w=img.width,h=img.height;
       if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}
       const canvas=document.createElement('canvas');
       canvas.width=w;canvas.height=h;
       canvas.getContext('2d').drawImage(img,0,0,w,h);
-      const compressed=canvas.toDataURL('image/jpeg',0.6);
+      // Try 50% quality first, reduce if still too large
+      let quality=0.5;
+      let compressed=canvas.toDataURL('image/jpeg',quality);
+      // Check size — if >800KB base64, compress more
+      while(compressed.length>800000&&quality>0.2){
+        quality-=0.1;
+        compressed=canvas.toDataURL('image/jpeg',quality);
+      }
       const b64=compressed.split(',')[1];
+      const sizeKB=Math.round(b64.length*0.75/1024);
       S.charts[idx]={b64,mime:'image/jpeg',name:TF_NAMES[idx]};
       const slot=document.getElementById('slot'+idx);
       const prev=document.getElementById('preview'+idx);
       const status=document.getElementById('status'+idx);
       slot.classList.add('has-img');
       prev.src=compressed;prev.style.display='block';
-      status.textContent='✓ '+TF_NAMES[idx];
+      status.textContent=`✓ ${TF_NAMES[idx]} (${sizeKB}KB)`;
       updateUploadUI();
     };
     img.src=ev.target.result;
@@ -702,14 +845,17 @@ function onTFSelect(e,idx){
 }
 
 function updateUploadUI(){
-  const loaded=S.charts.filter(c=>c!==null).length;
+  const loaded=S.charts.filter(c=>c!==null);
+  const count=loaded.length;
   const countEl=document.getElementById('uploadCount');
   const btn=document.getElementById('visionBtn');
   const clearBtn=document.getElementById('clearBtn');
-  if(loaded===0){countEl.textContent='';btn.disabled=true;clearBtn.style.display='none';}
+  if(count===0){countEl.textContent='';btn.disabled=true;clearBtn.style.display='none';}
   else{
     const names=S.charts.map((c,i)=>c?TF_NAMES[i]:null).filter(Boolean).join(' + ');
-    countEl.textContent=loaded+' chart diupload: '+names+(loaded<3?' (boleh tambah '+(3-loaded)+' lagi)':'');
+    const totalKB=Math.round(loaded.reduce((a,c)=>a+(c.b64.length*0.75/1024),0));
+    const sizeColor=totalKB>2000?'var(--dn)':totalKB>1000?'var(--warn)':'var(--up)';
+    countEl.innerHTML=`${count} chart: ${names} <span style="color:${sizeColor}">(${totalKB}KB total)</span>${count<3?' • boleh tambah '+(3-count)+' lagi':''}`;
     btn.disabled=false;
     clearBtn.style.display='block';
   }
@@ -733,10 +879,26 @@ function clearAllCharts(){
 function onFileSelect(e){onTFSelect(e,2);}
 
 async function runVision(){
-  const loaded=S.charts.filter(c=>c!==null);
+  let loaded=S.charts.filter(c=>c!==null);
   if(!loaded.length)return;
   const btn=document.getElementById('visionBtn'),ico=document.getElementById('visionIco');
   btn.disabled=true;ico.className='spinning';
+
+  // Check total size — if >1.5MB, prioritize M15 > H1 > H4
+  const totalBytes=loaded.reduce((a,c)=>a+(c.b64.length*0.75),0);
+  if(totalBytes>1500000){
+    // Sort by priority: M15 first, then H1, then H4
+    const priority=['M15','H1','H4'];
+    loaded=loaded.sort((a,b)=>priority.indexOf(a.name)-priority.indexOf(b.name));
+    // Keep only 2 if still too large
+    let reduced=loaded;
+    while(reduced.reduce((a,c)=>a+(c.b64.length*0.75),0)>1500000&&reduced.length>1){
+      reduced=reduced.slice(0,-1);
+    }
+    loaded=reduced;
+    console.log('Images reduced to:',loaded.map(c=>c.name).join('+'));
+  }
+
   try{
     const indTxt=S.ind?`\nData indikator semasa: Price:${S.ind.close} EMA50:${S.ind.ema50?.toFixed(2)} EMA200:${S.ind.ema200?.toFixed(2)} RSI:${S.ind.rsi?.toFixed(1)} MACD_hist:${S.ind.macd.hist?.toFixed(4)} ATR:${S.ind.atr?.toFixed(2)} 1H:${document.getElementById('mtf1h')?.textContent} 15m:${document.getElementById('mtf15m')?.textContent}`:'';
 
@@ -785,12 +947,63 @@ Balas JSON sahaja, tiada teks lain, tiada markdown:
     S.vCnt++;localStorage.setItem('v5',S.vCnt);
   }catch(e){
     document.getElementById('visionSec').style.display='block';
-    document.getElementById('visionCard').innerHTML=`<div class="card fade" style="color:var(--dn);font-size:12px;line-height:1.7">
-      <b>Gagal:</b> ${e.message}<br><br>
-      <span style="color:var(--fg3)">Semak ANTHROPIC_API_KEY dalam Netlify Environment Variables.</span>
+    const errMsg=e.message||'Unknown error';
+    let advice='';
+    if(errMsg.includes('405'))advice='URL function salah — cuba semula selepas deploy terbaru';
+    else if(errMsg.includes('API_KEY')||errMsg.includes('auth'))advice='ANTHROPIC_API_KEY belum diset dalam Cloudflare → Settings → Variables and Secrets';
+    else if(errMsg.includes('kosong')||errMsg.includes('empty'))advice='Function dapat dipanggil tapi API key mungkin salah atau credit habis';
+    else if(errMsg.includes('JSON'))advice='Response dari Cloudflare bukan JSON — function mungkin return HTML error page';
+    else if(errMsg.includes('credit')||errMsg.includes('balance'))advice='Claude API credit habis — top up di console.anthropic.com';
+    else advice='Cuba test: buka ' + window.location.origin + '/claude dalam browser baru';
+    document.getElementById('visionCard').innerHTML=`
+    <div class="card fade">
+      <div style="color:var(--dn);font-size:12px;font-weight:600;margin-bottom:8px">⚠ Vision Gagal</div>
+      <div style="background:var(--dnBg);border:1px solid var(--dnBd);border-radius:6px;padding:8px;font-size:11px;color:var(--dn);margin-bottom:8px;word-break:break-all">${errMsg}</div>
+      ${advice?`<div style="font-size:11px;color:var(--fg3);line-height:1.6">💡 ${advice}</div>`:''}
+      <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+        <button onclick="testFunction()" style="padding:6px 12px;background:var(--s3);border:1px solid var(--b2);border-radius:6px;color:var(--fg);font-size:11px;cursor:pointer;font-family:'Instrument Sans',sans-serif">🔧 Test Function</button>
+        <button onclick="runVision()" style="padding:6px 12px;background:var(--gold);border:none;border-radius:6px;color:#000;font-size:11px;cursor:pointer;font-family:'Instrument Sans',sans-serif">↺ Cuba Semula</button>
+      </div>
+      <div id="testResult" style="margin-top:8px;font-size:10px;color:var(--fg3)"></div>
     </div>`;
   }
   finally{btn.disabled=false;ico.className='';ico.textContent='◎'}
+}
+
+// Test if /claude function is reachable
+async function testFunction(){
+  const el=document.getElementById('testResult');
+  if(!el)return;
+  el.textContent='Testing...';
+  el.style.color='var(--fg3)';
+  try{
+    // Send minimal test request
+    const r=await fetch('/claude',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-5',
+        max_tokens:50,
+        messages:[{role:'user',content:'Reply with just: OK'}]
+      })
+    });
+    const status=r.status;
+    const txt=await r.text();
+    if(txt.includes('content')&&txt.includes('text')){
+      el.textContent='✓ Function berfungsi! Claude API connected.';
+      el.style.color='var(--up)';
+    }else if(txt.includes('error')){
+      const parsed=JSON.parse(txt);
+      el.textContent='Function OK tapi API error: '+(parsed.error?.message||parsed.error||txt.slice(0,100));
+      el.style.color='var(--warn)';
+    }else{
+      el.textContent='Status: '+status+' | Response: '+txt.slice(0,150);
+      el.style.color='var(--warn)';
+    }
+  }catch(e){
+    el.textContent='✗ Function tidak boleh dicapai: '+e.message;
+    el.style.color='var(--dn)';
+  }
 }
 
 function renderVision(r,tfList){
@@ -856,7 +1069,7 @@ async function handleRefresh(){
     const bs1h=biasScore(i1h),bs15m=biasScore(i15m);
     const b1h=bs1h.dir,b15m=bs15m.dir;
     const zones=detectSNR(c1h,c15m);const patterns=detectPatterns(c15m);
-    renderPrice(price,i15m,b1h);renderMTF(b1h,b15m);
+    renderPrice(price,i15m,b1h);renderMTF(b1h,b15m,i15m);
     // Auto close if TP/SL hit
     if(S.active&&S.active.status==='active'){
       const sig=S.active;
@@ -892,7 +1105,7 @@ async function handleRefresh(){
         document.getElementById('lastUpd').textContent='Updated: '+new Date().toLocaleTimeString('ms-MY');
         return;
       }
-      const st=sltp(price,gate.dir,zones,i15m.atr);
+      const st=sltp(price,gate.dir,zones,i15m.atr,i15m);
       const entry={...ai,...st,dir:gate.dir,direction:gate.dir,price,zone:gate.zone,mtf:`1H:${b1h} 15m:${b15m}`,time:new Date(),symbol:S.label,status:'active',id:Date.now(),result:null,visionUsed:false};
       S.active=entry;S.hist.unshift(entry);if(S.hist.length>100)S.hist=S.hist.slice(0,100);saveH();
       sendN(`🎯 ${gate.dir}!`,`${S.label} @ ${price.toFixed(2)} | TP:${st.tp1} SL:${st.sl}`);
@@ -926,15 +1139,18 @@ function renderPrice(price,ind,b){
   const macdEl=document.getElementById('pcMACD');macdEl.textContent=ind.macd.hist?.toFixed(3)||'--';macdEl.style.color=ind.macd.hist>0?'var(--up)':'var(--dn)';
 }
 
-function renderMTF(b1h,b15m){
+function renderMTF(b1h,b15m,ind15m){
   const set=(id,dotId,val)=>{const el=document.getElementById(id),dot=document.getElementById(dotId);el.textContent=val==='Bullish'?'Bull':val==='Bearish'?'Bear':'Neut';el.style.color=tcol(val);dot.style.background=tcol(val)};
   set('mtf1h','mtfDot1h',b1h);set('mtf15m','mtfDot15m',b15m);
   const aligned=b1h===b15m&&b1h!=='Neutral';const partial=(b1h!=='Neutral'||b15m!=='Neutral')&&!aligned;const conflict=b1h!=='Neutral'&&b15m!=='Neutral'&&b1h!==b15m;
   const el=document.getElementById('mtfResult');
-  if(aligned){el.textContent='✓ Aligned '+b1h;el.style.background='var(--upBg)';el.style.border='1px solid var(--upBd)';el.style.color='var(--up)'}
-  else if(conflict){el.textContent='✗ Conflicting';el.style.background='var(--dnBg)';el.style.border='1px solid var(--dnBd)';el.style.color='var(--dn)'}
-  else if(partial){el.textContent='≈ Partial';el.style.background='var(--warnBg)';el.style.border='1px solid var(--warnBd)';el.style.color='var(--warn)'}
-  else{el.textContent='— Neutral';el.style.background='var(--s2)';el.style.border='1px solid var(--b1)';el.style.color='var(--fg3)'}
+  const adxVal=ind15m?.adx?.adx||0;
+  const adxStr=adxVal>=25?'Strong':adxVal>=18?'Moderate':'Weak';
+  const adxCol=adxVal>=25?'var(--up)':adxVal>=18?'var(--warn)':'var(--dn)';
+  if(aligned){el.innerHTML=`✓ ${b1h} <span style="font-size:9px;color:${adxCol}">ADX:${adxVal.toFixed(0)} ${adxStr}</span>`;el.style.background='var(--upBg)';el.style.border='1px solid var(--upBd)';el.style.color='var(--up)'}
+  else if(conflict){el.innerHTML=`✗ Conflict <span style="font-size:9px;color:${adxCol}">ADX:${adxVal.toFixed(0)}</span>`;el.style.background='var(--dnBg)';el.style.border='1px solid var(--dnBd)';el.style.color='var(--dn)'}
+  else if(partial){el.innerHTML=`≈ Partial <span style="font-size:9px;color:${adxCol}">ADX:${adxVal.toFixed(0)}</span>`;el.style.background='var(--warnBg)';el.style.border='1px solid var(--warnBd)';el.style.color='var(--warn)'}
+  else{el.innerHTML=`— Neutral <span style="font-size:9px;color:${adxCol}">ADX:${adxVal.toFixed(0)}</span>`;el.style.background='var(--s2)';el.style.border='1px solid var(--b1)';el.style.color='var(--fg3)'}
 }
 
 function renderNoSig(price,b1h,b15m,gate,patterns){
@@ -1003,15 +1219,19 @@ document.getElementById('snrCard').innerHTML=zones.slice(0,6).map(z=>{const here
 return`<div class="zone-row"><div><div class="zone-type" style="color:${col}">${z.type.toUpperCase()}${here?' ← HERE':''}</div><div class="zone-src">${z.src}</div></div><div style="text-align:right"><div class="zone-price">${z.price}</div><span class="zone-str ${z.str==='Strong'?'zs-strong':z.str==='Med'?'zs-med':'zs-weak'}">${z.str}</span></div></div>`}).join('')}
 
 function renderInd(ind){if(!ind){showEl('indSec',false);return}showEl('indSec',true);
+const adxV=ind.adx?.adx||0;
+const adxC=adxV>=25?'var(--up)':adxV>=18?'var(--warn)':'var(--dn)';
+const volV=ind.vol?.score>0?ind.vol.score.toFixed(1)+'x':'N/A';
+const volC=ind.vol?.aboveAvg?'var(--up)':'var(--warn)';
 const items=[
   {l:'RSI',v:ind.rsi?.toFixed(1),c:ind.rsi>70?'var(--dn)':ind.rsi<30?'var(--up)':'var(--fg)'},
+  {l:'ADX',v:adxV.toFixed(0),c:adxC},
   {l:'EMA50',v:ind.ema50?.toFixed(1),c:ind.ema50>ind.ema200?'var(--up)':'var(--dn)'},
   {l:'EMA200',v:ind.ema200?.toFixed(1),c:'var(--fg2)'},
   {l:'MACD',v:ind.macd.hist?.toFixed(3),c:ind.macd.hist>0?'var(--up)':'var(--dn)'},
   {l:'ATR',v:ind.atr?.toFixed(2),c:'var(--gold)'},
+  {l:'VOL',v:volV,c:volC},
   {l:'SRSI',v:ind.stochRsi!=null?(ind.stochRsi*100).toFixed(0):'--',c:'var(--fg2)'},
-  {l:'BB+',v:ind.bb?.u?.toFixed(1)||'--',c:'var(--dn)'},
-  {l:'BB-',v:ind.bb?.l?.toFixed(1)||'--',c:'var(--up)'},
 ];
 document.getElementById('indGrid').innerHTML=items.map(i=>`<div class="ind-box"><div class="ind-lbl">${i.l}</div><div class="ind-val" style="color:${i.c}">${i.v||'--'}</div></div>`).join('')}
 
