@@ -203,6 +203,17 @@ td{font-size:11px;color:var(--fg2);padding:8px 4px;border-top:1px solid var(--b1
 .nav-ico{font-size:17px;line-height:1}
 .nav-dot{width:4px;height:4px;border-radius:50%;background:var(--dn);position:absolute;top:2px;right:10px}
 
+.cal-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--b1)}
+.cal-item:last-child{border-bottom:none}
+.cal-time{font-size:10px;color:var(--fg3);font-family:'JetBrains Mono',monospace;min-width:50px}
+.cal-event{flex:1;padding:0 8px}
+.cal-event-name{font-size:12px;font-weight:500;color:var(--fg)}
+.cal-currency{font-size:10px;color:var(--fg3)}
+.cal-impact{font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px}
+.imp-high{background:var(--dnBg);color:var(--dn);border:1px solid var(--dnBd)}
+.imp-med{background:var(--warnBg);color:var(--warn);border:1px solid var(--warnBd)}
+.imp-low{background:var(--s3);color:var(--fg3);border:1px solid var(--b2)}
+.cal-soon{background:var(--dnBg)!important;border-color:var(--dnBd)!important}
 .tf-slot{background:var(--s2);border:1px dashed var(--b2);border-radius:10px;padding:8px;text-align:center;cursor:pointer;transition:all .2s;min-height:80px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
 .tf-slot:active{border-color:var(--gold);background:var(--s3)}
 .tf-slot.has-img{border-style:solid;border-color:var(--upBd);background:#0d1a10}
@@ -403,11 +414,24 @@ td{font-size:11px;color:var(--fg2);padding:8px 4px;border-top:1px solid var(--b1
   </div>
 </div>
 
-<!-- ===== NEWS ===== -->
+<!-- ===== NEWS + CALENDAR ===== -->
 <div class="page" id="pgNews">
   <div class="scroll" style="padding:12px">
-    <div style="font-size:18px;font-weight:700;margin-bottom:12px">Market News</div>
-    <div class="card" id="newsCard"><div class="ld-wrap"><div class="ld-spin"></div><span class="ld-text">Loading...</span></div></div>
+    <div style="font-size:18px;font-weight:700;margin-bottom:12px">News & Calendar</div>
+
+    <!-- ECONOMIC CALENDAR -->
+    <div style="font-size:11px;font-weight:600;color:var(--fg3);letter-spacing:.5px;margin-bottom:8px">ECONOMIC CALENDAR — HIGH IMPACT</div>
+    <div id="calCard" class="card">
+      <div class="ld-wrap"><div class="ld-spin"></div><span class="ld-text">Loading calendar...</span></div>
+    </div>
+
+    <!-- NEWS FILTER WARNING -->
+    <div id="newsWarning" style="display:none;background:var(--dnBg);border:1px solid var(--dnBd);border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:var(--dn)">
+      ⚠ <b>HIGH IMPACT NEWS</b> dalam masa 1 jam — pertimbangkan untuk tidak trade sekarang
+    </div>
+
+    <div style="font-size:11px;font-weight:600;color:var(--fg3);letter-spacing:.5px;margin-bottom:8px;margin-top:4px">GOLD MARKET NEWS</div>
+    <div class="card" id="newsCard"><div class="ld-wrap"><div class="ld-spin"></div><span class="ld-text">Loading news...</span></div></div>
   </div>
 </div>
 
@@ -555,10 +579,21 @@ return p}
 // ========== SIGNAL GATE (RELAXED) ==========
 function evaluate(b1h,b15m,ind,zones,at,bs1h,bs15m){
   const reasons=[],checks={};
-  // Allow new signal if previous is >15 min old (timer-based like reference system)
+  // STRICT signal management — no spam
   if(S.active&&S.active.status==='active'){
-    const age=(Date.now()-new Date(S.active.time).getTime())/60000;
-    if(age<14)return{ok:false,reason:`Signal aktif dibuka ${age.toFixed(0)} minit lepas. Tunggu 15 minit.`,checks,reasons};
+    const sig=S.active;
+    const ageMin=(Date.now()-new Date(sig.time).getTime())/60000;
+    const priceDiff=Math.abs(ind.close-sig.price);
+    const movedEnough=priceDiff>=(at*1.2); // price mesti bergerak 1.2 ATR dari entry lama
+    const dirChanged=(sig.dir||sig.direction)!==b1h&&b1h!=='Neutral'; // direction bertukar
+
+    if(!movedEnough&&!dirChanged){
+      return{ok:false,reason:`Signal aktif masih dalam zone yang sama. Price bergerak ${priceDiff.toFixed(2)} (perlukan ${(at*1.2).toFixed(2)} = 1.2 ATR). Tunggu TP/SL atau perubahan direction.`,checks,reasons,bScore:bs1h?.b+bs15m?.b||0,brScore:bs1h?.br+bs15m?.br||0};
+    }
+    // If direction changed — flag it, handleRefresh will close
+    if(dirChanged){
+      return{ok:'close_and_new',dir:b1h,zone,checks,reasons,closeOld:true,bScore:bs1h?.b+bs15m?.b||0,brScore:bs1h?.br+bs15m?.br||0};
+    }
   }
 
   // Get direction — 1H takes priority, fallback to 15m
@@ -828,12 +863,24 @@ async function handleRefresh(){
       if(sig.dir==='Bullish'){if(price>=sig.tp1)closeSig(sig,'win',price);else if(price<=sig.sl)closeSig(sig,'loss',price);}
       else{if(price<=sig.tp1)closeSig(sig,'win',price);else if(price>=sig.sl)closeSig(sig,'loss',price);}
     }
-    // Auto-close if signal > 1 hour old (cleanup like reference system)
+    // Auto-close if signal > 4 hours old (cleanup — give enough time for TP/SL)
     if(S.active&&S.active.status==='active'){
       const ageMin=(Date.now()-new Date(S.active.time).getTime())/60000;
-      if(ageMin>60){closeSig(S.active,'loss',price); /* Expired */}
+      if(ageMin>240){
+        // Check if profitable before closing
+        const sig=S.active;
+        const isProfitable=sig.dir==='Bullish'?price>sig.price:price<sig.price;
+        closeSig(sig,isProfitable?'win':'loss',price);
+      }
     }
     const gate=evaluate(b1h,b15m,i15m,zones,i15m.atr,bs1h,bs15m);setLoad(false);
+
+    // Handle direction change — close old signal and open new
+    if(gate.ok==='close_and_new'&&gate.closeOld&&S.active){
+      closeSig(S.active,'loss',price);
+      gate.ok=true; // allow new signal
+    }
+
     if(!gate.ok){renderNoSig(price,b1h,b15m,gate,patterns)}
     else{
       showSig('Claude AI analysing 50 candles...');let ai;
@@ -908,7 +955,12 @@ function renderNoSig(price,b1h,b15m,gate,patterns){
     ${passed||failed?`<div style="margin-top:8px">${passed} ${failed}</div>`:''}
     ${patHtml}
     <div style="margin-top:8px;font-size:10px;color:var(--fg4)">1H:${b1h} | 15m:${b15m} | $${price.toFixed(2)}</div>
-    <div style="margin-top:6px;font-size:11px;color:var(--fg3)">📸 Upload chart screenshot → Claude Vision</div></div>
+    ${S.active&&S.active.status==='active'?`
+    <div style="margin-top:8px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;padding:8px;font-size:11px">
+      <div style="color:var(--fg3);margin-bottom:4px">Signal aktif: <b style="color:${S.active.dir==='Bullish'?'var(--up)':'var(--dn)'}">${S.active.dir}</b> @ ${S.active.price?.toFixed(2)}</div>
+      <div style="color:var(--fg3)">TP1: <b style="color:var(--up)">${S.active.tp1?.toFixed(2)}</b> | SL: <b style="color:var(--dn)">${S.active.sl?.toFixed(2)}</b></div>
+    </div>`:''}
+    <div style="margin-top:8px;font-size:11px;color:var(--fg3)">📸 Guna Claude Vision untuk analisis visual →</div></div>
   </div>`;
 }
 
@@ -995,10 +1047,164 @@ function updNotifUI(){document.getElementById('notifSt').textContent=S.notif?'Ak
 function sendN(title,body){if(!S.notif)return;if('serviceWorker'in navigator)navigator.serviceWorker.ready.then(r=>r.showNotification(title,{body,icon:'./icon.svg',vibrate:[200,100,200]}));else new Notification(title,{body})}
 
 // ========== NEWS ==========
-async function fetchNews(){const c=document.getElementById('newsCard');try{const r=await fetch('https://api.rss2json.com/v1/api.json?rss_url='+encodeURIComponent('https://feeds.finance.yahoo.com/rss/2.0/headline?s=GC=F&region=US&lang=en-US')+'&api_key=public&count=10');const d=await r.json();if(!d.items?.length)throw 0;c.innerHTML=d.items.map(it=>`<div class="news-item"><div class="news-src">${(it.author||'Finance').toUpperCase()}</div><div class="news-title" onclick="window.open('${it.link}','_blank')">${it.title}</div><div style="font-size:9px;color:var(--fg4);margin-top:3px">${new Date(it.pubDate).toLocaleString('ms-MY',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div></div>`).join('')}catch{c.innerHTML=`<div style="text-align:center;padding:16px;font-size:12px;color:var(--fg3)"><a href="https://finance.yahoo.com/commodities/" target="_blank" style="color:var(--info)">Yahoo Finance →</a><br><br><a href="https://www.kitco.com/news/gold/" target="_blank" style="color:var(--info)">Kitco →</a></div>`}}
+// ========== ECONOMIC CALENDAR ==========
+let calendarEvents = [];
+let hasHighImpactSoon = false;
+
+async function fetchCalendar() {
+  const calCard = document.getElementById('calCard');
+  try {
+    // Use ForexFactory RSS or fallback to static important dates
+    // We'll use a CORS-friendly approach via allorigins
+    const today = new Date();
+    const dateStr = today.toISOString().slice(0, 10);
+    
+    // Try to fetch from investing.com economic calendar via RSS
+    const url = 'https://api.rss2json.com/v1/api.json?rss_url=' + 
+      encodeURIComponent('https://www.forexfactory.com/ff_cal_thisweek.xml') + 
+      '&api_key=public&count=20';
+    
+    let events = [];
+    try {
+      const r = await fetch(url);
+      const d = await r.json();
+      if (d.items?.length) {
+        events = d.items
+          .filter(item => {
+            const title = (item.title || '').toLowerCase();
+            const isGoldRelevant = title.includes('usd') || title.includes('fed') || 
+              title.includes('cpi') || title.includes('nfp') || title.includes('fomc') ||
+              title.includes('gdp') || title.includes('inflation') || title.includes('interest');
+            return isGoldRelevant;
+          })
+          .slice(0, 8)
+          .map(item => ({
+            time: new Date(item.pubDate).toLocaleTimeString('ms-MY', {hour:'2-digit', minute:'2-digit'}),
+            name: item.title,
+            impact: item.title.toLowerCase().includes('fomc') || 
+                   item.title.toLowerCase().includes('fed') || 
+                   item.title.toLowerCase().includes('nfp') ? 'high' : 'med',
+            currency: 'USD',
+            date: new Date(item.pubDate)
+          }));
+      }
+    } catch(e) {}
+
+    // Fallback — show manual important events this week
+    if (!events.length) {
+      events = getManualCalendar();
+    }
+
+    calendarEvents = events;
+    checkHighImpactWarning(events);
+    renderCalendar(events);
+  } catch(e) {
+    calCard.innerHTML = getManualCalendarHTML();
+  }
+}
+
+function getManualCalendar() {
+  // Static high-impact events that affect gold
+  const now = new Date();
+  return [
+    { name: 'FOMC Meeting Minutes', currency: 'USD', impact: 'high', time: 'Semak ForexFactory', note: 'High impact pada gold' },
+    { name: 'US CPI (Inflation)', currency: 'USD', impact: 'high', time: 'Semak ForexFactory', note: 'High impact pada gold' },
+    { name: 'NFP (Non-Farm Payrolls)', currency: 'USD', impact: 'high', time: 'Jumaat, 8:30 PM', note: 'High impact pada gold' },
+    { name: 'Fed Interest Rate Decision', currency: 'USD', impact: 'high', time: 'Semak ForexFactory', note: 'Most impact pada gold' },
+    { name: 'US GDP', currency: 'USD', impact: 'med', time: 'Semak ForexFactory', note: 'Medium impact' },
+  ];
+}
+
+function getManualCalendarHTML() {
+  return `
+    <div style="font-size:11px;color:var(--fg2);line-height:1.8;margin-bottom:10px">
+      <b style="color:var(--dn)">HIGH IMPACT</b> events yang affect gold:
+    </div>
+    ${getManualCalendar().map(e => `
+      <div class="cal-item">
+        <div class="cal-event">
+          <div class="cal-event-name">${e.name}</div>
+          <div class="cal-currency" style="margin-top:2px">${e.currency} • ${e.note}</div>
+        </div>
+        <span class="cal-impact imp-${e.impact}">${e.impact.toUpperCase()}</span>
+      </div>`).join('')}
+    <div style="margin-top:10px;font-size:10px;color:var(--fg3)">
+      Semak jadual penuh di: 
+      <a href="https://www.forexfactory.com/calendar" target="_blank" style="color:var(--gold)">ForexFactory →</a> atau 
+      <a href="https://www.investing.com/economic-calendar/" target="_blank" style="color:var(--gold)">Investing.com →</a>
+    </div>`;
+}
+
+function renderCalendar(events) {
+  const el = document.getElementById('calCard');
+  if (!events.length) { el.innerHTML = getManualCalendarHTML(); return; }
+  
+  const now = new Date();
+  el.innerHTML = events.map(e => {
+    const isSoon = e.date && Math.abs(e.date - now) < 60 * 60 * 1000;
+    return `<div class="cal-item ${isSoon ? 'cal-soon' : ''}">
+      <div class="cal-time">${e.time}</div>
+      <div class="cal-event">
+        <div class="cal-event-name">${e.name}</div>
+        <div class="cal-currency">${e.currency || 'USD'}</div>
+      </div>
+      <span class="cal-impact imp-${e.impact}">${e.impact.toUpperCase()}</span>
+    </div>`;
+  }).join('') + `
+  <div style="margin-top:10px;font-size:10px;color:var(--fg3)">
+    Semak lebih lanjut: <a href="https://www.forexfactory.com/calendar" target="_blank" style="color:var(--gold)">ForexFactory →</a>
+  </div>`;
+}
+
+function checkHighImpactWarning(events) {
+  const now = new Date();
+  const soon = events.some(e => 
+    e.impact === 'high' && e.date && 
+    Math.abs(e.date - now) < 60 * 60 * 1000
+  );
+  hasHighImpactSoon = soon;
+  const warn = document.getElementById('newsWarning');
+  if (warn) warn.style.display = soon ? 'block' : 'none';
+  
+  // Also show warning on home page signal
+  updateSignalWithNewsWarning(soon);
+}
+
+function updateSignalWithNewsWarning(hasSoon) {
+  // Add warning indicator to ticker if high impact news soon
+  const ticker = document.querySelector('.ticker');
+  if (!ticker) return;
+  const existing = document.getElementById('newsWarnTicker');
+  if (hasSoon && !existing) {
+    const span = document.createElement('span');
+    span.id = 'newsWarnTicker';
+    span.style.cssText = 'color:var(--dn);font-size:10px;animation:pulse 1s infinite';
+    span.textContent = '⚠ HIGH NEWS';
+    ticker.appendChild(span);
+  } else if (!hasSoon && existing) {
+    existing.remove();
+  }
+}
+
+// ========== NEWS ==========
+async function fetchNews(){
+  const c=document.getElementById('newsCard');
+  try{
+    const r=await fetch('https://api.rss2json.com/v1/api.json?rss_url='+encodeURIComponent('https://feeds.finance.yahoo.com/rss/2.0/headline?s=GC=F&region=US&lang=en-US')+'&api_key=public&count=10');
+    const d=await r.json();
+    if(!d.items?.length)throw 0;
+    c.innerHTML=d.items.map(it=>`<div class="news-item"><div class="news-src">${(it.author||'Finance').toUpperCase()}</div><div class="news-title" onclick="window.open('${it.link}','_blank')">${it.title}</div><div style="font-size:9px;color:var(--fg4);margin-top:3px">${new Date(it.pubDate).toLocaleString('ms-MY',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div></div>`).join('');
+  }catch{
+    c.innerHTML=`<div style="text-align:center;padding:16px;font-size:12px;color:var(--fg3)">
+      <a href="https://finance.yahoo.com/commodities/" target="_blank" style="color:var(--info)">Yahoo Finance Gold →</a><br><br>
+      <a href="https://www.kitco.com/news/gold/" target="_blank" style="color:var(--info)">Kitco Gold News →</a><br><br>
+      <a href="https://www.forexfactory.com/news" target="_blank" style="color:var(--info)">ForexFactory News →</a>
+    </div>`;
+  }
+}
 
 // ========== NAV ==========
-function go(pg){['Home','Stats','Alerts','News','Settings'].forEach(p=>{document.getElementById('pg'+p).className='page'+(p===pg?' active':'');document.getElementById('n'+p).className='nav-item'+(p===pg?' active':'')});if(pg==='Stats')renderWR();if(pg==='News')fetchNews();if(pg==='Alerts')renderAlerts();if(pg==='Settings'){updNotifUI();loadSetUI()}}
+function go(pg){['Home','Stats','Alerts','News','Settings'].forEach(p=>{document.getElementById('pg'+p).className='page'+(p===pg?' active':'');document.getElementById('n'+p).className='nav-item'+(p===pg?' active':'')});if(pg==='Stats')renderWR();if(pg==='News'){fetchNews();fetchCalendar();}if(pg==='Alerts')renderAlerts();if(pg==='Settings'){updNotifUI();loadSetUI()}}
 function setSym(sym,label,el){S.sym=sym;S.label=label;localStorage.setItem('s5',sym);localStorage.setItem('l5',label);document.querySelectorAll('.sym-tab').forEach(b=>b.classList.remove('active'));el.classList.add('active');S.apiCnt=0;handleRefresh()}
 function tglSet(btn,key){btn.classList.toggle('on');btn.classList.toggle('off');S.prefs[key]=btn.classList.contains('on');saveP()}
 function saveP(){localStorage.setItem('p5',JSON.stringify(S.prefs))}
@@ -1018,7 +1224,7 @@ if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch
 if('Notification'in window&&Notification.permission==='granted')S.notif=true;
 
 // ========== INIT ==========
-(function(){updateSession();if(S.hist.length){renderHist();renderWR()}loadSetUI();renderAlerts();handleRefresh()})();
+(function(){updateSession();if(S.hist.length){renderHist();renderWR()}loadSetUI();renderAlerts();loadChart();handleRefresh();setTimeout(fetchCalendar,3000);})();
 </script>
 </body>
 </html>
