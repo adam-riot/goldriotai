@@ -1463,7 +1463,7 @@ Balas JSON:
     let clean=raw;
     const jsonMatch=raw.match(/\{[\s\S]*\}/);
     if(jsonMatch)clean=jsonMatch[0];
-    clean=clean.replace(/```json|```/g,'').replace(/[ -]/g,' ').trim();
+    clean=clean.replace(/```json|```/g,'').trim();
     const r=JSON.parse(clean);
     renderFollowup(r,curPrice);
   }catch(e){
