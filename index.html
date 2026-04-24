@@ -490,7 +490,7 @@ td{font-size:11px;color:var(--fg2);padding:8px 4px;border-top:1px solid var(--b1
         <div class="set-lbl">Min confidence</div>
         <span class="rv" style="color:var(--gold)" id="minLbl">55%</span>
       </div>
-      <input type="range" min="40" max="85" value="55" id="minSlider" style="width:100%;margin-top:4px;accent-color:var(--gold)" oninput="document.getElementById('minLbl').textContent=this.value+'%';S.prefs.minConf=+this.value;saveP()"/>
+      <input type="range" min="40" max="85" value="60" id="minSlider" style="width:100%;margin-top:4px;accent-color:var(--gold)" oninput="document.getElementById('minLbl').textContent=this.value+'%';S.prefs.minConf=+this.value;saveP()"/>
     </div>
     <div class="card">
       <div style="font-size:11px;font-weight:600;color:var(--fg3);letter-spacing:.5px;margin-bottom:8px">PUSH NOTIFICATIONS</div>
@@ -552,7 +552,7 @@ const S={
   label:localStorage.getItem('l5')||'GOLD',
   hist:JSON.parse(localStorage.getItem('h5')||'[]'),
   alerts:JSON.parse(localStorage.getItem('a5')||'[]'),
-  prefs:JSON.parse(localStorage.getItem('p5')||'{"strictMTF":false,"requireSNR":true,"minConf":55}'),
+  prefs:JSON.parse(localStorage.getItem('p5')||'{"strictMTF":true,"requireSNR":true,"minConf":60}'),
   active:null,ind:null,loading:false,notif:false,
   charts:[null,null,null], // [H4, H1, M15] each: {b64, mime, name}
   lastVision:null,
@@ -811,101 +811,114 @@ return p}
 // ========== SIGNAL GATE (RELAXED) ==========
 function evaluate(b1h,b15m,ind,zones,at,bs1h,bs15m){
   const reasons=[],checks={};
-  // STRICT signal management — no spam
+
+  // ── ACTIVE SIGNAL LOCK ──────────────────────────────────────
   if(S.active&&S.active.status==='active'){
     const sig=S.active;
-    const ageMin=(Date.now()-new Date(sig.time).getTime())/60000;
     const priceDiff=Math.abs(ind.close-sig.price);
-    const movedEnough=priceDiff>=(at*1.2); // price mesti bergerak 1.2 ATR dari entry lama
-    const dirChanged=(sig.dir||sig.direction)!==b1h&&b1h!=='Neutral'; // direction bertukar
-
+    const movedEnough=priceDiff>=(at*1.5);
+    const dirChanged=(sig.dir||sig.direction)!==b1h&&b1h!=='Neutral';
     if(!movedEnough&&!dirChanged){
-      return{ok:false,reason:`Signal aktif masih dalam zone yang sama. Price bergerak ${priceDiff.toFixed(2)} (perlukan ${(at*1.2).toFixed(2)} = 1.2 ATR). Tunggu TP/SL atau perubahan direction.`,checks,reasons,bScore:bs1h?.b+bs15m?.b||0,brScore:bs1h?.br+bs15m?.br||0};
+      return{ok:false,reason:`Signal aktif. Price bergerak ${priceDiff.toFixed(2)} (perlukan ${(at*1.5).toFixed(2)}). Tunggu TP/SL.`,checks,reasons};
     }
-    // If direction changed — flag it, handleRefresh will close
-    if(dirChanged){
-      return{ok:'close_and_new',dir:b1h,zone,checks,reasons,closeOld:true,bScore:bs1h?.b+bs15m?.b||0,brScore:bs1h?.br+bs15m?.br||0};
-    }
+    if(dirChanged)return{ok:'close_and_new',dir:b1h,zone:zoneAt(ind.close,zones,at),checks,reasons,closeOld:true};
   }
 
-  // Get direction — 1H takes priority, fallback to 15m
-  const dir=b1h!=='Neutral'?b1h:b15m;
-  if(dir==='Neutral')return{ok:false,reason:'Tiada arah jelas dari kedua-dua 1H dan 15m.',checks,reasons,bScore:(bs1h?.b||0)+(bs15m?.b||0),brScore:(bs1h?.br||0)+(bs15m?.br||0)};
-
-  // MTF — if strict mode, both must align. Default: 1 TF cukup
-  if(S.prefs.strictMTF){
-    if(b1h!==b15m||b1h==='Neutral'){checks.mtf=false;reasons.push(`MTF conflict: 1H=${b1h} vs 15m=${b15m}`);}
-    else checks.mtf=true;
-  }else{
-    // Only block if actively conflicting (both non-neutral but opposite)
-    if(b1h!=='Neutral'&&b15m!=='Neutral'&&b1h!==b15m){checks.mtf=false;reasons.push(`1H:${b1h} bertentangan 15m:${b15m}`);}
-    else checks.mtf=true;
+  // ── 1. DIRECTION — KEDUA-DUA TF MESTI AGREE ─────────────────
+  // HIGH QUALITY FILTER: 1H dan 15m kena sama arah
+  if(b1h==='Neutral'||b15m==='Neutral'){
+    return{ok:false,reason:`TF neutral — 1H:${b1h} 15m:${b15m}. Tunggu bias yang jelas.`,checks,reasons};
   }
+  if(b1h!==b15m){
+    checks.mtf=false;
+    return{ok:false,reason:`MTF conflict: 1H ${b1h} vs 15m ${b15m} — berlawanan arah. Skip.`,checks,reasons};
+  }
+  const dir=b1h;
+  checks.mtf=true;
 
-  // SNR — purely for SL/TP calculation, never blocks signal
-  const zone=zoneAt(ind.close,zones,at);
-  checks.snr=true;
-  checks.snrDir=true;
+  // ── 2. BIAS SCORE — KENA KUAT ───────────────────────────────
+  // Require strong bias — bukan sekadar majority
+  const bScore=(bs1h?.b||0)+(bs15m?.b||0);
+  const brScore=(bs1h?.br||0)+(bs15m?.br||0);
+  const dominantScore=dir==='Bullish'?bScore:brScore;
+  const oppositeScore=dir==='Bullish'?brScore:bScore;
+  if(dominantScore<6){
+    checks.bias=false;
+    reasons.push(`Bias score ${dominantScore}/18 terlalu lemah (perlukan ≥6) — conviction rendah`);
+  }else checks.bias=true;
 
-  // RSI — only block extreme readings
-  if(dir==='Bullish'&&ind.rsi>85){checks.rsi=false;reasons.push('RSI overbought >85');}
-  else if(dir==='Bearish'&&ind.rsi<15){checks.rsi=false;reasons.push('RSI oversold <15');}
-  else checks.rsi=true;
-
-  // MACD — informational only
-  checks.macd=true;
-
-  // ADX — trend strength filter
+  // ── 3. ADX — MESTI TRENDING ──────────────────────────────────
   const adxVal=ind.adx?.adx||0;
-  if(adxVal<18){
+  if(adxVal<20){
     checks.adx=false;
-    reasons.push(`ADX ${adxVal.toFixed(1)} terlalu rendah (<18) — market ranging, bukan trending`);
+    reasons.push(`ADX ${adxVal.toFixed(1)} — market ranging (<20). Skip semasa sideways.`);
   }else checks.adx=true;
 
-  // BOS — structure confirmation (highly recommended but not blocking)
+  // ── 4. RSI — AVOID EXTREME & WRONG SIDE ─────────────────────
+  const rsi=ind.rsi||50;
+  if(dir==='Bullish'){
+    if(rsi>75){checks.rsi=false;reasons.push(`RSI ${rsi.toFixed(0)} overbought — jangan buy tinggi`);}
+    else if(rsi<40){checks.rsi=false;reasons.push(`RSI ${rsi.toFixed(0)} oversold untuk bull — momentum lemah`);}
+    else checks.rsi=true;
+  }else{
+    if(rsi<25){checks.rsi=false;reasons.push(`RSI ${rsi.toFixed(0)} oversold — jangan sell rendah`);}
+    else if(rsi>60){checks.rsi=false;reasons.push(`RSI ${rsi.toFixed(0)} masih tinggi untuk bear — momentum lemah`);}
+    else checks.rsi=true;
+  }
+
+  // ── 5. MACD CONFIRMATION ─────────────────────────────────────
+  const macdHist=ind.macd?.hist||0;
+  const macdOk=(dir==='Bullish'&&macdHist>0)||(dir==='Bearish'&&macdHist<0);
+  if(!macdOk){
+    checks.macd=false;
+    reasons.push(`MACD histogram ${macdHist.toFixed(4)} berlawanan dengan ${dir} — momentum tak confirm`);
+  }else checks.macd=true;
+
+  // ── 6. BOS/STRUCTURE CONFIRMATION ───────────────────────────
   const bosData=ind.bos||{};
   const recentBOS=bosData.recentBOS||[];
   const bosAligned=recentBOS.some(b=>
-    (dir==='Bullish'&&b.type==='Bullish')||
-    (dir==='Bearish'&&b.type==='Bearish')
-  );
-  const chochAligned=bosData.choch&&(
-    (dir==='Bullish'&&bosData.choch.type==='Bullish')||
-    (dir==='Bearish'&&bosData.choch.type==='Bearish')
+    (dir==='Bullish'&&b.type==='Bullish')||(dir==='Bearish'&&b.type==='Bearish')
   );
   const bosActive=bosData.bos&&(
-    (dir==='Bullish'&&bosData.bos.type==='Bullish')||
-    (dir==='Bearish'&&bosData.bos.type==='Bearish')
+    (dir==='Bullish'&&bosData.bos.type==='Bullish')||(dir==='Bearish'&&bosData.bos.type==='Bearish')
   );
-  // BOS adds confidence bonus — no blocking unless structure completely wrong
-  if(bosActive||bosAligned){checks.bos=true;}
-  else if(bosData.structure&&bosData.structure!=='Ranging'){
-    const structureOK=
-      (dir==='Bullish'&&bosData.structure.includes('Bullish'))||
-      (dir==='Bearish'&&bosData.structure.includes('Bearish'))||
-      bosData.structure==='Expanding';
-    if(!structureOK){
-      checks.bos=false;
-      reasons.push(`Structure ${bosData.structure} — berlawanan dengan direction ${dir}`);
-    }else checks.bos=true;
+  const structureOK=bosData.structure&&(
+    (dir==='Bullish'&&bosData.structure.includes('Bullish'))||
+    (dir==='Bearish'&&bosData.structure.includes('Bearish'))||
+    bosData.structure==='Expanding'
+  );
+  if(bosActive||bosAligned||structureOK){checks.bos=true;}
+  else if(bosData.structure==='Ranging'){
+    checks.bos=false;
+    reasons.push(`Market structure: Ranging — tunggu BOS confirmation`);
   }else checks.bos=true;
 
-  // Volume — if available, require above average
+  // ── 7. VOLUME ─────────────────────────────────────────────────
   if(ind.vol&&ind.vol.score>0){
-    if(!ind.vol.aboveAvg&&adxVal<25){
+    if(!ind.vol.aboveAvg&&adxVal<28){
       checks.volume=false;
-      reasons.push(`Volume ${ind.vol.note} — trend lemah dan volume rendah`);
+      reasons.push(`Volume ${ind.vol.note} di bawah average dan ADX lemah — kurang conviction`);
     }else checks.volume=true;
-  }else checks.volume=true; // skip if no volume data
+  }else checks.volume=true;
 
-  const fail=Object.values(checks).filter(v=>!v).length;
-  if(fail>0)return{ok:false,reason:`${fail} syarat gagal`,checks,reasons,dir,bScore:(bs1h?.b||0)+(bs15m?.b||0),brScore:(bs1h?.br||0)+(bs15m?.br||0)};
-  return{ok:true,dir,zone,checks,reasons,bScore:(bs1h?.b||0)+(bs15m?.b||0),brScore:(bs1h?.br||0)+(bs15m?.br||0)};
+  // ── 8. SESSION — ALL SESSIONS (24/7) ───────────────────────
+  checks.session=true; // All sessions active
+
+  // ── FINAL GATE ────────────────────────────────────────────────
+  const zone=zoneAt(ind.close,zones,at);
+  const failedChecks=Object.entries(checks).filter(([k,v])=>!v);
+  if(failedChecks.length>0){
+    const mainReason=reasons[0]||`${failedChecks.length} syarat gagal: ${failedChecks.map(([k])=>k).join(', ')}`;
+    return{ok:false,reason:mainReason,checks,reasons,dir,bScore,brScore};
+  }
+
+  return{ok:true,dir,zone,checks,reasons,bScore,brScore};
 }
 function sltp(price,dir,zones,at,ind){
   let sl,tp1,tp2;
   const swing=ind?.swing||{};
-  const buf=at*0.3; // buffer beyond swing point
+  const buf=at*0.5; // buffer beyond swing point — 0.5 ATR to avoid stop hunts
 
   if(dir==='Bullish'){
     // SL: below nearest swing low OR support zone — whichever is closer but logical
@@ -933,13 +946,12 @@ function sltp(price,dir,zones,at,ind){
     tp2=sup.length>1?+(sup[1].price+buf).toFixed(2):+(price-at*3).toFixed(2);
   }
 
-  // Ensure minimum RR 1:1
+  // Ensure minimum RR 1:1.5
   const risk=Math.abs(price-sl);
   const rew=Math.abs(tp1-price);
-  // If RR < 1:1, extend TP1
-  if(rew<risk){
-    if(dir==='Bullish')tp1=+(price+risk).toFixed(2);
-    else tp1=+(price-risk).toFixed(2);
+  if(rew<risk*1.5){
+    if(dir==='Bullish')tp1=+(price+risk*1.5).toFixed(2);
+    else tp1=+(price-risk*1.5).toFixed(2);
   }
 
   const finalRisk=Math.abs(price-sl);
@@ -2122,15 +2134,29 @@ function saveTelegram(){
   if(!token||!chatId){alert('Masukkan token dan chat ID');return;}
   localStorage.setItem('tgBotToken',token);
   localStorage.setItem('tgChatId',chatId);
-  // Test send
   const el=document.getElementById('tgStatus');
-  if(el)el.textContent='Testing...';
+  if(el){el.textContent='Testing...';el.style.color='var(--fg3)';}
+  // Test Telegram
   fetch(`https://api.telegram.org/bot${token}/sendMessage`,{
     method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({chat_id:chatId,text:'✅ XAUAI Telegram connected! Signal akan dihantar ke sini.',parse_mode:'Markdown'})
+    body:JSON.stringify({chat_id:chatId,text:'✅ *XAUAI Connected!*\n\nKau akan terima:\n• 🟢🔴 Signal BUY/SELL (auto)
+• ⚡ Ready Alert (setup hampir siap)
+• 🎯 Entry zone alert (bila price masuk zone)
+
+_24/7 monitoring aktif_',parse_mode:'Markdown'})
   }).then(r=>r.json()).then(d=>{
-    if(el)el.textContent=d.ok?'✓ Connected! Test message sent.':'✗ Failed: '+(d.description||'Unknown error');
-    if(el)el.style.color=d.ok?'var(--up)':'var(--dn)';
+    if(!d.ok){if(el){el.textContent='✗ Telegram failed: '+(d.description||'Unknown');el.style.color='var(--dn)';}return;}
+    if(el){el.textContent='✓ Telegram connected!';el.style.color='var(--up)';}
+    // Register with Worker if URL set
+    const workerUrl=localStorage.getItem('workerUrl');
+    if(workerUrl){
+      fetch(workerUrl+'/register',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({botToken:token,chatId})
+      }).then(r=>r.json()).then(d2=>{
+        if(el&&d2.success)el.textContent='✓ Telegram + Worker connected! 24/7 signal aktif.';
+      }).catch(()=>{});
+    }
   }).catch(e=>{if(el){el.textContent='✗ Error: '+e.message;el.style.color='var(--dn)';}});
 }
 function saveGem(){const v=document.getElementById('gemIn').value.trim();if(v){S.geminiKey=v;localStorage.setItem('gemK5',v);alert('Gemini API key disimpan! Cuba analyse chart sekarang.')}}
