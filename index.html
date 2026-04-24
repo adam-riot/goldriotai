@@ -238,7 +238,7 @@ td{font-size:11px;color:var(–fg2);padding:8px 4px;border-top:1px solid var(–
 
 <div class="topbar">
   <div class="logo">XAU<span>AI</span></div>
-  <div id="sessionPill" class="session-pill session-closed">Closed</div>
+  <div id="sessionPill" class="session-pill session-closed">...</div>
 </div>
 
 <!-- SYMBOLS -->
@@ -1698,7 +1698,7 @@ function renderVision(r,tfList){
 
 // ========== MAIN ==========
 async function handleRefresh(){
-  if(S.loading)return;if(!canCall()){showErr('⚠ API limit — tunggu 1 minit');return}
+  if(S.loading)return;if(!canCall()){showErr('⚠ API rate limit — tunggu 1 minit sebelum refresh lagi');return}
   showErr('');setLoad(true);showSig('Fetching live price + candles...');
   try{
     recordCall(2); // Only 2 TF calls, price from candle
@@ -2145,7 +2145,16 @@ if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch
 if('Notification'in window&&Notification.permission==='granted')S.notif=true;
 
 // ========== INIT ==========
-(function(){updateSession();if(S.hist.length){renderHist();renderWR()}loadSetUI();renderAlerts();loadChart();handleRefresh();setTimeout(fetchCalendar,3000);})();
+(function(){
+  updateSession(); // Update session immediately
+  if(S.hist.length){renderHist();renderWR()}
+  loadSetUI();renderAlerts();loadChart();
+  // Small delay to let page render first, then fetch
+  setTimeout(()=>{
+    handleRefresh();
+    setTimeout(fetchCalendar,5000);
+  }, 500);
+})();
 </script>
 
 </body>
