@@ -2139,11 +2139,7 @@ function saveTelegram(){
   // Test Telegram
   fetch(`https://api.telegram.org/bot${token}/sendMessage`,{
     method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({chat_id:chatId,text:'✅ *XAUAI Connected!*\n\nKau akan terima:\n• 🟢🔴 Signal BUY/SELL (auto)
-• ⚡ Ready Alert (setup hampir siap)
-• 🎯 Entry zone alert (bila price masuk zone)
-
-_24/7 monitoring aktif_',parse_mode:'Markdown'})
+    body:JSON.stringify({chat_id:chatId,text:'✅ *XAUAI Connected!*\n\nKau akan terima:\n• Signal BUY/SELL (auto)\n• Ready Alert (setup hampir siap)\n• Entry zone alert (bila price masuk zone)\n\n_24/7 monitoring aktif_',parse_mode:'Markdown'})
   }).then(r=>r.json()).then(d=>{
     if(!d.ok){if(el){el.textContent='✗ Telegram failed: '+(d.description||'Unknown');el.style.color='var(--dn)';}return;}
     if(el){el.textContent='✓ Telegram connected!';el.style.color='var(--up)';}
