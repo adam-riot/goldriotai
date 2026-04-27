@@ -1001,9 +1001,35 @@ function sltp(price,dir,zones,at,ind){
 }
 
 // ========== API ==========
-function canCall(){const now=Date.now();if(now-S.apiTime>60000)S.apiCnt=0;return S.apiCnt<7}
-function recordCall(n=1){S.apiCnt+=n;S.apiTime=Date.now();if(S.apiCnt>=5)showEl('rateWarn',true)}
-async function fetchPrice(){const r=await fetch(`https://api.twelvedata.com/price?symbol=${encodeURIComponent(S.sym)}&apikey=${S.tdKey}`);const j=await r.json();if(j.status==='error')throw new Error(j.message);return+j.price}
+function canCall(){
+  const now=Date.now();
+  if(now-S.apiTime>60000)S.apiCnt=0;
+  // If MT5 connected, only count TD API calls (not MT5 fetches)
+  const workerUrl=localStorage.getItem('workerUrl');
+  const limit=workerUrl?50:7; // 50 if MT5/Worker, 7 if TD only
+  return S.apiCnt<limit;
+}
+function recordCall(n=1){S.apiCnt+=n;S.apiTime=Date.now();if(S.apiCnt>=5&&!localStorage.getItem('workerUrl'))showEl('rateWarn',true)}
+async function fetchPrice(){
+  // Try MT5 price first (real-time from broker, no credit cost)
+  const workerUrl=localStorage.getItem('workerUrl');
+  if(workerUrl){
+    try{
+      const symMap={'XAU/USD':'XAUUSD','XAG/USD':'XAGUSD','BTC/USD':'BTCUSD','EUR/USD':'EURUSD'};
+      const mt5Sym=symMap[S.sym]||'XAUUSD';
+      const r=await fetch(`${workerUrl}/mt5/data?symbol=${mt5Sym}&tf=15m`,{signal:AbortSignal.timeout(3000)});
+      const d=await r.json();
+      if(d.ok&&d.price&&d.ageSeconds<1200){
+        return+d.price; // MT5 price — no TD credit used!
+      }
+    }catch(e){}
+  }
+  // Fallback: Twelve Data
+  const r=await fetch(`https://api.twelvedata.com/price?symbol=${encodeURIComponent(S.sym)}&apikey=${S.tdKey}`);
+  const j=await r.json();
+  if(j.status==='error')throw new Error(j.message);
+  return+j.price;
+}
 async function fetchTF(iv,sz=55){
   // Try MT5 data first (real-time, from EA)
   const workerUrl=localStorage.getItem('workerUrl');
@@ -1959,7 +1985,7 @@ function renderVision(r,tfList){
 
 // ========== MAIN ==========
 async function handleRefresh(){
-  if(S.loading)return;if(!canCall()){showErr('⚠ API rate limit — tunggu 1 minit sebelum refresh lagi');return}
+  if(S.loading)return;const usingMT5=!!(localStorage.getItem('workerUrl'));if(!usingMT5&&!canCall()){showErr('⚠ API rate limit — tunggu 1 minit sebelum refresh lagi');return}
   showErr('');setLoad(true);showSig('Fetching live price + candles...');
   try{
     recordCall(2); // Only 2 TF calls, price from candle
@@ -2453,7 +2479,7 @@ function loadSetUI(){document.getElementById('minSlider').value=S.prefs.minConf|
 }
 
 // ========== LIVE PRICE TICK ==========
-setInterval(async()=>{if(S.loading||!canCall())return;try{recordCall(1);const p=await fetchPrice();S.lastPriceTick=Date.now();S.livePrice=p;document.getElementById('pcPrice').textContent='$'+p.toFixed(2);checkEntryZone(p);if(S.ind){const ch=p-S.ind.open,pc=(ch/S.ind.open*100).toFixed(2);document.getElementById('pcChg').innerHTML=`<span style="color:${ch>=0?'var(--up)':'var(--dn)'}">${ch>=0?'+':''}${ch.toFixed(2)} (${pc}%)</span>`}checkAlerts(p);
+setInterval(async()=>{if(S.loading)return;try{const p=await fetchPrice();S.lastPriceTick=Date.now();S.livePrice=p;document.getElementById('pcPrice').textContent='$'+p.toFixed(2);checkEntryZone(p);if(S.ind){const ch=p-S.ind.open,pc=(ch/S.ind.open*100).toFixed(2);document.getElementById('pcChg').innerHTML=`<span style="color:${ch>=0?'var(--up)':'var(--dn)'}">${ch>=0?'+':''}${ch.toFixed(2)} (${pc}%)</span>`}checkAlerts(p);
 if(S.active?.status==='active'){const sig=S.active;if(sig.dir==='Bullish'){if(p>=sig.tp1)closeSig(sig,'win',p);else if(p<=sig.sl)closeSig(sig,'loss',p)}else{if(p<=sig.tp1)closeSig(sig,'win',p);else if(p>=sig.sl)closeSig(sig,'loss',p)}}}catch{}},60000); // 60s tick
 
 setInterval(handleRefresh,15*60*1000); // Every 15 min = timer-based signal like reference system
