@@ -1050,9 +1050,10 @@ async function fetchTF(iv,sz=55){
       const tfStr=tfMap[iv]||iv;
       const symMap={'XAU/USD':'XAUUSD','XAG/USD':'XAGUSD','BTC/USD':'BTCUSD','EUR/USD':'EURUSD'};
       const mt5Sym=symMap[S.sym]||'XAUUSD';
-      const r=await fetch(`${workerUrl}/mt5/data?symbol=${mt5Sym}&tf=${tfStr}`);
+      const r=await fetch(`${workerUrl}/mt5/data?symbol=${mt5Sym}&tf=${tfStr}`,{signal:AbortSignal.timeout(5000)});
       const d=await r.json();
-      if(d.ok&&d.candles&&d.candles.length>50&&d.ageSeconds<1200){
+      console.log('MT5 candle check: ok='+d.ok+' age='+d.ageSeconds+' candles='+d.candles?.length);
+      if(d.ok&&d.candles&&d.candles.length>50&&d.ageSeconds<1800){
         console.log(`MT5 data: ${d.candles.length} candles, age ${d.ageSeconds}s`);
         // Update MT5 status indicator
         const el=document.getElementById('mt5Status');
