@@ -2140,7 +2140,7 @@ document.getElementById('indGrid').innerHTML=items.map(i=>`<div class="ind-box">
 function renderHist(){if(!S.hist.length){showEl('histSec',false);return}showEl('histSec',true);
 document.getElementById('histBody').innerHTML=S.hist.slice(0,15).map(h=>`<tr><td style="color:${tcol(h.dir||h.direction)}">${(h.dir||h.direction||'').slice(0,4)}</td><td>${h.price?.toFixed(2)||'--'}</td><td style="color:var(--up)">${h.tp1?.toFixed(2)||'--'}</td><td style="color:var(--dn)">${h.sl?.toFixed(2)||'--'}</td><td style="color:var(--gold)">${h.rr||'--'}</td><td>${h.status==='active'?'<span style="color:var(--info)">Active</span>':h.result==='win'?'<span style="color:var(--up)">Win✓</span>':h.result==='loss'?'<span style="color:var(--dn)">Loss✗</span>':'—'}</td></tr>`).join('')}
 
-function closeSig(sig,result,closeP){sig.status='closed';sig.result=result;sig.closePrice=closeP;S.active=null;const i=S.hist.findIndex(h=>h.id===sig.id);if(i>=0)S.hist[i]=sig;saveH();renderHist();renderWR();sendN(`Signal ${result==='win'?'WIN ✓':'LOSS ✗'}`,`${sig.symbol} @ ${closeP}`)  autoSync();
+function closeSig(sig,result,closeP){sig.status='closed';sig.result=result;sig.closePrice=closeP;S.active=null;const i=S.hist.findIndex(h=>h.id===sig.id);if(i>=0)S.hist[i]=sig;saveH();renderHist();renderWR();sendN(`Signal ${result==='win'?'WIN ✓':'LOSS ✗'}`,`${sig.symbol} @ ${closeP}`);autoSync();
 }
 function saveH(){localStorage.setItem('h5',JSON.stringify(S.hist))}
 
