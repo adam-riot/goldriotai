@@ -2495,7 +2495,7 @@ function loadSetUI(){document.getElementById('minSlider').value=S.prefs.minConf|
 
 // ========== LIVE PRICE TICK ==========
 setInterval(async()=>{if(S.loading)return;try{const p=await fetchPrice();S.lastPriceTick=Date.now();S.livePrice=p;document.getElementById('pcPrice').textContent='$'+p.toFixed(2);checkEntryZone(p);if(S.ind){const ch=p-S.ind.open,pc=(ch/S.ind.open*100).toFixed(2);document.getElementById('pcChg').innerHTML=`<span style="color:${ch>=0?'var(--up)':'var(--dn)'}">${ch>=0?'+':''}${ch.toFixed(2)} (${pc}%)</span>`}checkAlerts(p);
-if(S.active?.status==='active'){const sig=S.active;if(sig.dir==='Bullish'){if(p>=sig.tp1)closeSig(sig,'win',p);else if(p<=sig.sl)closeSig(sig,'loss',p)}else{if(p<=sig.tp1)closeSig(sig,'win',p);else if(p>=sig.sl)closeSig(sig,'loss',p)}}}catch{}},60000); // 60s tick
+if(S.active?.status==='active'){const sig=S.active;if(sig.dir==='Bullish'){if(p>=sig.tp1)closeSig(sig,'win',p);else if(p<=sig.sl)closeSig(sig,'loss',p)}else{if(p<=sig.tp1)closeSig(sig,'win',p);else if(p>=sig.sl)closeSig(sig,'loss',p)}}}catch{}},5000); // 60s tick
 
 setInterval(handleRefresh,15*60*1000); // Every 15 min = timer-based signal like reference system
 setInterval(updateSession,60000);
