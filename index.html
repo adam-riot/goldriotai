@@ -1679,6 +1679,91 @@ function renderMLBadge(ml){
     </div>`;
 }
 
+// ============================================================
+// CLOUD DATA SYNC — save/load history from Cloudflare KV
+// ============================================================
+
+// Generate unique user ID (stored in localStorage, never changes)
+function getUserId(){
+  let id = localStorage.getItem('xauai_uid');
+  if(!id){
+    id = 'u_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+    localStorage.setItem('xauai_uid', id);
+  }
+  return id;
+}
+
+// Save data to cloud
+async function cloudSave(type, data){
+  const workerUrl = localStorage.getItem('workerUrl');
+  if(!workerUrl) return false;
+  try{
+    const r = await fetch(workerUrl + '/data/save', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        userId: getUserId(),
+        type,
+        data
+      })
+    });
+    const d = await r.json();
+    return d.success;
+  }catch(e){
+    console.log('Cloud save error:', e.message);
+    return false;
+  }
+}
+
+// Load data from cloud
+async function cloudLoad(type){
+  const workerUrl = localStorage.getItem('workerUrl');
+  if(!workerUrl) return null;
+  try{
+    const uid = getUserId();
+    const r = await fetch(`${workerUrl}/data/load?userId=${uid}&type=${type}`);
+    const d = await r.json();
+    return d.ok ? d.data : null;
+  }catch(e){
+    console.log('Cloud load error:', e.message);
+    return null;
+  }
+}
+
+// Save history to cloud
+async function syncHistoryToCloud(){
+  if(!S.hist || S.hist.length === 0) return;
+  await cloudSave('history', S.hist);
+  await cloudSave('stats', {
+    totalTrades: S.hist.length,
+    wins: S.hist.filter(h=>h.result==='win').length,
+    lastSync: new Date().toISOString()
+  });
+}
+
+// Load history from cloud on startup
+async function loadHistoryFromCloud(){
+  const cloudHist = await cloudLoad('history');
+  if(!cloudHist || !Array.isArray(cloudHist)) return false;
+
+  // Merge cloud + local — prefer cloud if more data
+  const localHist = S.hist || [];
+  if(cloudHist.length >= localHist.length){
+    S.hist = cloudHist;
+    saveH(); // Also save to localStorage
+    renderHist();
+    renderWR();
+    console.log(`Cloud history loaded: ${cloudHist.length} trades`);
+    return true;
+  }
+  return false;
+}
+
+// Auto-sync after every new signal
+function autoSync(){
+  setTimeout(()=>syncHistoryToCloud(), 2000);
+}
+
 // Test if /claude function is reachable
 async function testFunction(){
   const el=document.getElementById('testResult');
@@ -1895,6 +1980,7 @@ const entry={...ai,...st,dir:gate.dir,direction:gate.dir,price,zone:gate.zone,mt
       S.active=entry;S.hist.unshift(entry);if(S.hist.length>100)S.hist=S.hist.slice(0,100);saveH();
       sendN(`🎯 ${gate.dir}!`,`${S.label} @ ${price.toFixed(2)} | TP:${st.tp1} SL:${st.sl}`);
       sendSignalToTelegram(entry);
+      autoSync(); // Sync to cloud
       renderSigCard(entry,patterns);
     }
     renderSNR(zones,price,i15m.atr);renderInd(i15m);renderHist();renderWR();
@@ -2054,7 +2140,8 @@ document.getElementById('indGrid').innerHTML=items.map(i=>`<div class="ind-box">
 function renderHist(){if(!S.hist.length){showEl('histSec',false);return}showEl('histSec',true);
 document.getElementById('histBody').innerHTML=S.hist.slice(0,15).map(h=>`<tr><td style="color:${tcol(h.dir||h.direction)}">${(h.dir||h.direction||'').slice(0,4)}</td><td>${h.price?.toFixed(2)||'--'}</td><td style="color:var(--up)">${h.tp1?.toFixed(2)||'--'}</td><td style="color:var(--dn)">${h.sl?.toFixed(2)||'--'}</td><td style="color:var(--gold)">${h.rr||'--'}</td><td>${h.status==='active'?'<span style="color:var(--info)">Active</span>':h.result==='win'?'<span style="color:var(--up)">Win✓</span>':h.result==='loss'?'<span style="color:var(--dn)">Loss✗</span>':'—'}</td></tr>`).join('')}
 
-function closeSig(sig,result,closeP){sig.status='closed';sig.result=result;sig.closePrice=closeP;S.active=null;const i=S.hist.findIndex(h=>h.id===sig.id);if(i>=0)S.hist[i]=sig;saveH();renderHist();renderWR();sendN(`Signal ${result==='win'?'WIN ✓':'LOSS ✗'}`,`${sig.symbol} @ ${closeP}`)}
+function closeSig(sig,result,closeP){sig.status='closed';sig.result=result;sig.closePrice=closeP;S.active=null;const i=S.hist.findIndex(h=>h.id===sig.id);if(i>=0)S.hist[i]=sig;saveH();renderHist();renderWR();sendN(`Signal ${result==='win'?'WIN ✓':'LOSS ✗'}`,`${sig.symbol} @ ${closeP}`)  autoSync();
+}
 function saveH(){localStorage.setItem('h5',JSON.stringify(S.hist))}
 
 // ========== WIN RATE ==========
@@ -2320,14 +2407,20 @@ if('Notification'in window&&Notification.permission==='granted')S.notif=true;
 
 // ========== INIT ==========
 (function(){
-  updateSession(); // Update session immediately
+  updateSession();
+  setInterval(updateSession,60000);
   if(S.hist.length){renderHist();renderWR()}
   loadSetUI();renderAlerts();loadChart();
-  // Small delay to let page render first, then fetch
-  setTimeout(()=>{
+
+  // Load cloud history first, then refresh
+  setTimeout(async()=>{
+    await loadHistoryFromCloud(); // Load saved history from cloud
     handleRefresh();
     setTimeout(fetchCalendar,5000);
   }, 500);
+
+  // Auto-sync to cloud every 10 minit
+  setInterval(syncHistoryToCloud, 10*60*1000);
 })();
 </script>
 </body>
