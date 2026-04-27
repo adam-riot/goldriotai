@@ -579,29 +579,58 @@ if(S.hist.length&&S.hist[0].status==='active')S.active=S.hist[0];
 // ========== TA ENGINE ==========
 // ADX — measures trend strength (>25 = trending, <20 = ranging)
 function calcADX(h,l,c,p=14){
-  if(h.length<p+1)return{adx:0,pdi:0,ndi:0};
+  const n=h.length;
+  if(n<p*2+1)return{adx:0,pdi:0,ndi:0};
+
+  // Step 1: Calculate TR, +DM, -DM for each bar
   const tr=[],pdm=[],ndm=[];
-  for(let i=1;i<h.length;i++){
-    const ht=Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1]));
-    const up=h[i]-h[i-1],dn=l[i-1]-l[i];
-    tr.push(ht);
+  for(let i=1;i<n;i++){
+    const trVal=Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1]));
+    const up=h[i]-h[i-1];
+    const dn=l[i-1]-l[i];
+    tr.push(trVal);
     pdm.push(up>dn&&up>0?up:0);
     ndm.push(dn>up&&dn>0?dn:0);
   }
-  // Smoothed averages
-  const smooth=(arr,p)=>{
-    let s=arr.slice(0,p).reduce((a,b)=>a+b,0);
-    const r=[s];
-    for(let i=p;i<arr.length;i++){s=s-s/p+arr[i];r.push(s);}
-    return r;
-  };
-  const atr14=smooth(tr,p),pdi14=smooth(pdm,p),ndi14=smooth(ndm,p);
-  const pdiLine=pdi14.map((v,i)=>atr14[i]?100*v/atr14[i]:0);
-  const ndiLine=ndi14.map((v,i)=>atr14[i]?100*v/atr14[i]:0);
-  const dx=pdiLine.map((v,i)=>{const s=v+ndiLine[i];return s?100*Math.abs(v-ndiLine[i])/s:0;});
-  const adxSmooth=smooth(dx,p);
-  const last=adxSmooth.length-1;
-  return{adx:adxSmooth[last]||0,pdi:pdiLine[pdiLine.length-1]||0,ndi:ndiLine[ndiLine.length-1]||0};
+
+  // Step 2: Wilder's smoothing (initial sum then rolling)
+  let atr=tr.slice(0,p).reduce((a,b)=>a+b,0);
+  let pDM=pdm.slice(0,p).reduce((a,b)=>a+b,0);
+  let nDM=ndm.slice(0,p).reduce((a,b)=>a+b,0);
+
+  const pdiArr=[],ndiArr=[],dxArr=[];
+
+  // First values
+  const pdi0=atr>0?100*pDM/atr:0;
+  const ndi0=atr>0?100*nDM/atr:0;
+  pdiArr.push(pdi0);ndiArr.push(ndi0);
+  const sum0=pdi0+ndi0;
+  dxArr.push(sum0>0?100*Math.abs(pdi0-ndi0)/sum0:0);
+
+  // Rolling Wilder smoothing
+  for(let i=p;i<tr.length;i++){
+    atr=atr-atr/p+tr[i];
+    pDM=pDM-pDM/p+pdm[i];
+    nDM=nDM-nDM/p+ndm[i];
+    const pdi=atr>0?100*pDM/atr:0;
+    const ndi=atr>0?100*nDM/atr:0;
+    pdiArr.push(pdi);ndiArr.push(ndi);
+    const s=pdi+ndi;
+    dxArr.push(s>0?100*Math.abs(pdi-ndi)/s:0);
+  }
+
+  // Step 3: Smooth DX to get ADX
+  let adxVal=dxArr.slice(0,p).reduce((a,b)=>a+b,0)/p;
+  for(let i=p;i<dxArr.length;i++){
+    adxVal=(adxVal*(p-1)+dxArr[i])/p;
+  }
+
+  // Clamp to 0-100
+  adxVal=Math.min(100,Math.max(0,adxVal));
+  const lastPDI=Math.min(100,Math.max(0,pdiArr[pdiArr.length-1]||0));
+  const lastNDI=Math.min(100,Math.max(0,ndiArr[ndiArr.length-1]||0));
+
+  return{adx:adxVal,pdi:lastPDI,ndi:lastNDI};
 }
 
 // Volume analysis — above average = confirmation
@@ -2134,6 +2163,7 @@ const items=[
   {l:'ATR',v:ind.atr?.toFixed(2),c:'var(--gold)'},
   {l:'VOL',v:volV,c:volC},
   {l:'SRSI',v:ind.stochRsi!=null?(ind.stochRsi*100).toFixed(0):'--',c:'var(--fg2)'},
+    {l:'ML',v:mlV,c:mlC},
 ];
 document.getElementById('indGrid').innerHTML=items.map(i=>`<div class="ind-box"><div class="ind-lbl">${i.l}</div><div class="ind-val" style="color:${i.c}">${i.v||'--'}</div></div>`).join('')}
 
