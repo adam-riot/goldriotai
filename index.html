@@ -235,7 +235,7 @@ td{font-size:11px;color:var(--fg2);padding:8px 4px;border-top:1px solid var(--b1
 <!-- TOP BAR -->
 <div class="topbar">
   <div class="logo">XAU<span>AI</span></div>
-  <div id="sessionPill" class="session-pill session-closed">...</div>
+  <span id="mt5Status" style="font-size:9px;padding:2px 6px;background:var(--s2);border:1px solid var(--b1);border-radius:4px;color:var(--fg4);margin-right:4px;font-family:'JetBrains Mono',monospace">TD</span><div id="sessionPill" class="session-pill session-closed">...</div>
 </div>
 
 <!-- SYMBOLS -->
@@ -1005,17 +1005,43 @@ function canCall(){const now=Date.now();if(now-S.apiTime>60000)S.apiCnt=0;return
 function recordCall(n=1){S.apiCnt+=n;S.apiTime=Date.now();if(S.apiCnt>=5)showEl('rateWarn',true)}
 async function fetchPrice(){const r=await fetch(`https://api.twelvedata.com/price?symbol=${encodeURIComponent(S.sym)}&apikey=${S.tdKey}`);const j=await r.json();if(j.status==='error')throw new Error(j.message);return+j.price}
 async function fetchTF(iv,sz=55){
+  // Try MT5 data first (real-time, from EA)
+  const workerUrl=localStorage.getItem('workerUrl');
+  if(workerUrl){
+    try{
+      const tfMap={'1h':'1h','15min':'15m','15m':'15m','1H':'1h'};
+      const tfStr=tfMap[iv]||iv;
+      const symMap={'XAU/USD':'XAUUSD','XAG/USD':'XAGUSD','BTC/USD':'BTCUSD','EUR/USD':'EURUSD'};
+      const mt5Sym=symMap[S.sym]||'XAUUSD';
+      const r=await fetch(`${workerUrl}/mt5/data?symbol=${mt5Sym}&tf=${tfStr}`);
+      const d=await r.json();
+      if(d.ok&&d.fresh&&d.candles&&d.candles.length>50){
+        console.log(`MT5 data: ${d.candles.length} candles, age ${d.ageSeconds}s`);
+        // Update MT5 status indicator
+        const el=document.getElementById('mt5Status');
+        if(el)el.textContent='MT5 ✓';
+        return d.candles.map(c=>({
+          open:c.o,high:c.h,low:c.l,close:c.c,
+          time:c.t*1000,volume:c.v||0
+        }));
+      }
+    }catch(e){console.log('MT5 data unavailable, using Twelve Data');}
+  }
+
+  // Fallback: Twelve Data
+  const el=document.getElementById('mt5Status');
+  if(el)el.textContent='TD';
   const controller=new AbortController();
-  const timeout=setTimeout(()=>controller.abort(),15000); // 15s timeout
+  const timeout=setTimeout(()=>controller.abort(),15000);
   try{
     const r=await fetch(`https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(S.sym)}&interval=${iv}&outputsize=${sz}&apikey=${S.tdKey}`,{signal:controller.signal});
     clearTimeout(timeout);
     const j=await r.json();
     if(j.status==='error')throw new Error(j.message+' ('+iv+')');
-    return j.values.reverse().map(c=>({open:+c.open,high:+c.high,low:+c.low,close:+c.close,time:new Date(c.datetime).getTime()}));
+    return j.values.reverse().map(c=>({open:+c.open,high:+c.high,low:+c.low,close:+c.close,time:new Date(c.datetime).getTime(),volume:0}));
   }catch(e){
     clearTimeout(timeout);
-    if(e.name==='AbortError')throw new Error('Timeout fetching '+iv+' data — semak connection');
+    if(e.name==='AbortError')throw new Error('Timeout — semak connection');
     throw e;
   }
 }
