@@ -274,7 +274,10 @@ td{font-size:11px;color:var(--fg2);padding:8px 4px;border-top:1px solid var(--b1
     </div>
 
     <!-- CONTROLS -->
-    <div style="display:flex;gap:6px;padding:0 12px;flex-shrink:0">
+    <!-- ML BADGE -->
+    <div id="mlBadge" style="display:none;background:var(--s2);border:1px solid var(--b2);border-radius:10px;padding:8px 12px;margin:0 12px 6px;flex-direction:column"></div>
+
+  <div style="display:flex;gap:6px;padding:0 12px;flex-shrink:0">
       <button class="refresh-btn" onclick="handleRefresh()" style="flex:1;padding:8px;border-radius:10px;background:var(--s2);border:1px solid var(--b1);color:var(--fg2);font-size:12px;font-family:'Instrument Sans',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px"><span id="refIco">↻</span> Refresh Data</button>
     </div>
 
@@ -518,6 +521,13 @@ td{font-size:11px;color:var(--fg2);padding:8px 4px;border-top:1px solid var(--b1
         <div id="tgStatus" style="font-size:10px;color:var(--fg3);margin-top:5px"></div>
       </div>
     <div class="card">
+        <div style="font-size:11px;font-weight:600;color:var(--fg3);letter-spacing:.5px;margin-bottom:8px">ML MODEL API</div>
+        <div style="font-size:11px;color:var(--fg3);margin-bottom:6px;line-height:1.6">URL Railway ML API untuk prediction berdasarkan 5 tahun data gold.</div>
+        <input class="set-input" id="mlUrlIn" placeholder="https://web-production-xxx.up.railway.app"/>
+        <button class="set-btn" onclick="saveMLUrl()">Save & Test ML API</button>
+        <div id="mlStatus" style="font-size:10px;color:var(--fg3);margin-top:5px"></div>
+      </div>
+    <div class="card">
         <div style="font-size:11px;font-weight:600;color:var(--fg3);letter-spacing:.5px;margin-bottom:8px">BACKGROUND WORKER (24/7)</div>
         <div style="font-size:11px;color:var(--fg3);margin-bottom:6px;line-height:1.6">
           Cloudflare Worker untuk monitor entry zone 24/7 walaupun app tutup.<br>
@@ -556,9 +566,11 @@ const S={
   active:null,ind:null,loading:false,notif:false,
   charts:[null,null,null], // [H4, H1, M15] each: {b64, mime, name}
   lastVision:null,
+  mlPred:null, // latest ML prediction
   entryMonitor:null, // active entry zone monitor
   entryNotified:false, // prevent duplicate notifications
   workerUrl:localStorage.getItem('workerUrl')||'', // Cloudflare Worker URL
+  mlUrl:localStorage.getItem('mlUrl')||'https://web-production-86bfc.up.railway.app', // ML API URL
   vCnt:+localStorage.getItem('v5')||0,
   apiCnt:0,apiTime:0,livePrice:null,
 };
@@ -1509,6 +1521,48 @@ function renderFollowup(r,price){
 // ============================================================
 // TELEGRAM SEND
 // ============================================================
+function sendSignalToTelegram(entry){
+  const tgToken=localStorage.getItem('tgBotToken');
+  const tgChat=localStorage.getItem('tgChatId');
+  if(!tgToken||!tgChat)return;
+
+  const isBuy=entry.dir==='Bullish';
+  const emoji=isBuy?'🟢':'🔴';
+  const action=isBuy?'BUY':'SELL';
+
+  const msg=`${emoji} *${action} SIGNAL — ${entry.symbol||S.label}*
+
+`+
+    `💰 *Entry:* \`${entry.price?.toFixed(2)||'N/A'}\`
+`+
+    `🛑 *SL:* \`${entry.sl?.toFixed(2)||'N/A'}\`
+`+
+    `🎯 *TP1:* \`${entry.tp1?.toFixed(2)||'N/A'}\`
+`+
+    `🎯 *TP2:* \`${entry.tp2?.toFixed(2)||'N/A'}\`
+`+
+    `📐 *RR:* ${entry.rr||'N/A'}
+
+`+
+    `📊 *MTF:* ${entry.mtf||'N/A'}
+`+
+    `💯 *Confidence:* ${entry.confidence||'N/A'}%
+
+`+
+    `⏰ ${new Date().toLocaleString('ms-MY')}
+`+
+    `_XAUAI Engine Signal_`;
+
+  fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({chat_id:tgChat,text:msg,parse_mode:'Markdown'})
+  }).then(r=>r.json()).then(d=>{
+    if(d.ok)console.log('Signal sent to Telegram');
+    else console.log('Telegram error:',d.description);
+  }).catch(e=>console.log('Telegram failed:',e));
+}
+
 function sendVisionToTelegram(){
   if(!S.lastVision)return;
   const v=S.lastVision;
@@ -1568,6 +1622,63 @@ function sendVisionToTelegram(){
 }
 
 // ============================================================
+// ============================================================
+// ML API — Get prediction from trained model
+// ============================================================
+async function getMLPrediction(candles15m){
+  const mlUrl=S.mlUrl||localStorage.getItem('mlUrl');
+  if(!mlUrl||!candles15m||candles15m.length<50)return null;
+
+  try{
+    // Send last 200 candles to ML API
+    const last200=candles15m.slice(-200).map(c=>({
+      datetime:new Date(c.time).toISOString().replace('T',' ').slice(0,19),
+      open:c.open, high:c.high, low:c.low, close:c.close, volume:c.volume||0
+    }));
+
+    const r=await fetch(mlUrl+'/predict',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({candles:last200}),
+      signal:AbortSignal.timeout(15000)
+    });
+
+    if(!r.ok)return null;
+    const data=await r.json();
+    if(data.error)return null;
+
+    return{
+      direction:data.direction,     // Bullish/Bearish/Neutral
+      confidence:data.confidence,   // 0-100
+      signal:data.signal,           // Buy/Sell/Wait
+      probabilities:data.probabilities
+    };
+  }catch(e){
+    console.log('ML API error:',e.message);
+    return null;
+  }
+}
+
+// Show ML prediction in UI
+function renderMLBadge(ml){
+  if(!ml)return;
+  const col=ml.direction==='Bullish'?'var(--up)':ml.direction==='Bearish'?'var(--dn)':'var(--warn)';
+  const badge=document.getElementById('mlBadge');
+  if(!badge)return;
+  badge.style.display='flex';
+  badge.innerHTML=`
+    <div style="font-size:9px;color:var(--fg4);letter-spacing:.5px;margin-bottom:3px">ML MODEL</div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="font-size:12px;font-weight:700;color:${col}">${ml.direction}</span>
+      <span style="font-size:10px;color:var(--fg3)">${ml.confidence.toFixed(0)}%</span>
+    </div>
+    <div style="display:flex;gap:4px;margin-top:4px">
+      <span style="font-size:9px;padding:2px 5px;background:var(--upBg);color:var(--up);border-radius:3px">B:${ml.probabilities?.buy?.toFixed(0)||0}%</span>
+      <span style="font-size:9px;padding:2px 5px;background:var(--s3);color:var(--fg3);border-radius:3px">N:${ml.probabilities?.neutral?.toFixed(0)||0}%</span>
+      <span style="font-size:9px;padding:2px 5px;background:var(--dnBg);color:var(--dn);border-radius:3px">S:${ml.probabilities?.sell?.toFixed(0)||0}%</span>
+    </div>`;
+}
+
 // Test if /claude function is reachable
 async function testFunction(){
   const el=document.getElementById('testResult');
@@ -1718,6 +1829,11 @@ async function handleRefresh(){
     const price=lp||i15m.close;S.livePrice=price;checkEntryZone(price);
     const bs1h=biasScore(i1h),bs15m=biasScore(i15m);
     const b1h=bs1h.dir,b15m=bs15m.dir;
+
+    // ML prediction (non-blocking background call)
+    getMLPrediction(c15m).then(ml=>{
+      if(ml){S.mlPred=ml;renderMLBadge(ml);}
+    });
     const zones=detectSNR(c1h,c15m);const patterns=detectPatterns(c15m);
     renderPrice(price,i15m,b1h);renderMTF(b1h,b15m,i15m);
     // Auto close if TP/SL hit
@@ -1748,6 +1864,20 @@ async function handleRefresh(){
     else{
       showSig('Claude AI analysing 50 candles...');let ai;
       try{ai=await runAI(i15m,b1h,b15m,gate,c15m)}catch(aiErr){console.error('AI err:',aiErr);ai={trend:gate.dir,confidence:60,signal:gate.dir==='Bullish'?'Buy':'Sell',analysis:`Struktur ${gate.dir.toLowerCase()} berdasarkan EMA dan momentum indicators. MTF 1H=${b1h} 15m=${b15m}.`,entry_reason:'Entry berdasarkan MTF alignment.'}}
+
+      // Boost/reduce confidence based on ML prediction
+      if(S.mlPred){
+        const mlAgrees=(gate.dir==='Bullish'&&S.mlPred.direction==='Bullish')||
+                       (gate.dir==='Bearish'&&S.mlPred.direction==='Bearish');
+        const mlConf=S.mlPred.confidence||50;
+        if(mlAgrees&&mlConf>65){
+          ai.confidence=Math.min(95,ai.confidence+Math.round((mlConf-50)/5));
+          ai.analysis+=' ML model ('+mlConf.toFixed(0)+'% confidence) menyokong arah ini.';
+        }else if(!mlAgrees&&mlConf>65){
+          ai.confidence=Math.max(40,ai.confidence-10);
+          ai.analysis+=' ⚠ ML model tidak bersetuju — extra caution.';
+        }
+      }
       // If AI disagrees with direction or confidence too low, skip
       if(ai.trend==='Neutral'||ai.confidence<S.prefs.minConf){
         renderNoSig(price,b1h,b15m,{...gate,ok:false,reason:`AI confidence ${ai.confidence}% < min ${S.prefs.minConf}% atau trend Neutral`,bScore:gate.bScore,brScore:gate.brScore},patterns);
@@ -1764,6 +1894,7 @@ async function handleRefresh(){
 const entry={...ai,...st,dir:gate.dir,direction:gate.dir,price,zone:gate.zone,mtf:`1H:${b1h} 15m:${b15m}`,time:new Date(),symbol:S.label,status:'active',id:Date.now(),result:null,visionUsed:false,bosInfo};
       S.active=entry;S.hist.unshift(entry);if(S.hist.length>100)S.hist=S.hist.slice(0,100);saveH();
       sendN(`🎯 ${gate.dir}!`,`${S.label} @ ${price.toFixed(2)} | TP:${st.tp1} SL:${st.sl}`);
+      sendSignalToTelegram(entry);
       renderSigCard(entry,patterns);
     }
     renderSNR(zones,price,i15m.atr);renderInd(i15m);renderHist();renderWR();
@@ -2114,6 +2245,19 @@ function setSym(sym,label,el){S.sym=sym;S.label=label;localStorage.setItem('s5',
 function tglSet(btn,key){btn.classList.toggle('on');btn.classList.toggle('off');S.prefs[key]=btn.classList.contains('on');saveP()}
 function saveP(){localStorage.setItem('p5',JSON.stringify(S.prefs))}
 function saveTd(){const v=document.getElementById('tdIn').value.trim();if(v){S.tdKey=v;localStorage.setItem('tdK5',v);S.apiCnt=0;handleRefresh()}}
+function saveMLUrl(){
+  const url=document.getElementById('mlUrlIn')?.value.trim();
+  if(!url){alert('Masukkan ML API URL');return;}
+  localStorage.setItem('mlUrl',url);S.mlUrl=url;
+  const el=document.getElementById('mlStatus');
+  if(el)el.textContent='Testing...';
+  fetch(url+'/').then(r=>r.json()).then(d=>{
+    if(el){el.textContent='✓ ML API connected: '+d.status;el.style.color='var(--up)';}
+  }).catch(e=>{
+    if(el){el.textContent='✗ Cannot reach ML API: '+e.message;el.style.color='var(--dn)';}
+  });
+}
+
 function saveWorkerUrl(){
   const url=document.getElementById('workerUrlIn')?.value.trim();
   if(!url){alert('Masukkan Worker URL');return;}
@@ -2160,6 +2304,7 @@ function loadSetUI(){document.getElementById('minSlider').value=S.prefs.minConf|
   const tgT=document.getElementById('tgTokenIn');if(tgT)tgT.value=localStorage.getItem('tgBotToken')||'';
   const tgC=document.getElementById('tgChatIn');if(tgC)tgC.value=localStorage.getItem('tgChatId')||'';
   const wU=document.getElementById('workerUrlIn');if(wU)wU.value=localStorage.getItem('workerUrl')||'';
+  const mU=document.getElementById('mlUrlIn');if(mU)mU.value=localStorage.getItem('mlUrl')||S.mlUrl||'';
 }
 
 // ========== LIVE PRICE TICK ==========
