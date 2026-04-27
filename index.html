@@ -1665,7 +1665,7 @@ async function getMLPrediction(candles15m){
       open:c.open, high:c.high, low:c.low, close:c.close, volume:c.volume||0
     }));
 
-    const r=await fetch(mlUrl+'/predict',{
+    const r=await fetch(mlUrl.replace(/\/+$/,'')+'/predict',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({candles:last200}),
@@ -2440,7 +2440,7 @@ if('Notification'in window&&Notification.permission==='granted')S.notif=true;
   updateSession();
   setInterval(updateSession,60000);
   if(S.hist.length){renderHist();renderWR()}
-  loadSetUI();renderAlerts();loadChart();
+  loadSetUI();renderAlerts();
 
   // Load cloud history first, then refresh
   setTimeout(async()=>{
