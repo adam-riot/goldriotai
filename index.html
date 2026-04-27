@@ -2176,8 +2176,10 @@ document.getElementById('snrCard').innerHTML=zones.slice(0,6).map(z=>{const here
 return`<div class="zone-row"><div><div class="zone-type" style="color:${col}">${z.type.toUpperCase()}${here?' ← HERE':''}</div><div class="zone-src">${z.src}</div></div><div style="text-align:right"><div class="zone-price">${z.price}</div><span class="zone-str ${z.str==='Strong'?'zs-strong':z.str==='Med'?'zs-med':'zs-weak'}">${z.str}</span></div></div>`}).join('')}
 
 function renderInd(ind){if(!ind){showEl('indSec',false);return}showEl('indSec',true);
-const adxV=ind.adx?.adx||0;
+const adxV=Math.min(100,ind.adx?.adx||0);
 const adxC=adxV>=25?'var(--up)':adxV>=18?'var(--warn)':'var(--dn)';
+const mlV=S.mlPred?`${S.mlPred.direction.slice(0,4)} ${S.mlPred.confidence.toFixed(0)}%`:'--';
+const mlC=S.mlPred?.direction==='Bullish'?'var(--up)':S.mlPred?.direction==='Bearish'?'var(--dn)':'var(--warn)';
 const volV=ind.vol?.score>0?ind.vol.score.toFixed(1)+'x':'N/A';
 const volC=ind.vol?.aboveAvg?'var(--up)':'var(--warn)';
 const items=[
