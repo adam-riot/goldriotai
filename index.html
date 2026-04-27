@@ -1011,20 +1011,35 @@ function canCall(){
 }
 function recordCall(n=1){S.apiCnt+=n;S.apiTime=Date.now();if(S.apiCnt>=5&&!localStorage.getItem('workerUrl'))showEl('rateWarn',true)}
 async function fetchPrice(){
-  // Try MT5 price first (real-time from broker, no credit cost)
   const workerUrl=localStorage.getItem('workerUrl');
   if(workerUrl){
     try{
       const symMap={'XAU/USD':'XAUUSD','XAG/USD':'XAGUSD','BTC/USD':'BTCUSD','EUR/USD':'EURUSD'};
       const mt5Sym=symMap[S.sym]||'XAUUSD';
-      const r=await fetch(`${workerUrl}/mt5/data?symbol=${mt5Sym}&tf=15m`,{signal:AbortSignal.timeout(3000)});
-      const d=await r.json();
-      if(d.ok&&d.price&&d.ageSeconds<1200){
-        return+d.price; // MT5 price — no TD credit used!
+
+      // Try live price first (updated every 30s by EA)
+      const rp=await fetch(`${workerUrl}/mt5/price?symbol=${mt5Sym}`,{signal:AbortSignal.timeout(3000)});
+      const dp=await rp.json();
+      if(dp.ok&&dp.bid&&dp.ageSeconds<30){
+        // Update MT5 indicator
+        const el=document.getElementById('mt5Status');
+        if(el)el.textContent=`MT5 ✓ ${dp.ageSeconds}s`;
+        return+(dp.bid); // Use bid price
+      }
+
+      // Fallback to candle data price
+      const rd=await fetch(`${workerUrl}/mt5/data?symbol=${mt5Sym}&tf=15m`,{signal:AbortSignal.timeout(3000)});
+      const dd=await rd.json();
+      if(dd.ok&&dd.price&&dd.ageSeconds<1200){
+        const el=document.getElementById('mt5Status');
+        if(el)el.textContent=`MT5 ${dd.ageSeconds}s`;
+        return+dd.price;
       }
     }catch(e){}
   }
   // Fallback: Twelve Data
+  const el=document.getElementById('mt5Status');
+  if(el)el.textContent='TD';
   const r=await fetch(`https://api.twelvedata.com/price?symbol=${encodeURIComponent(S.sym)}&apikey=${S.tdKey}`);
   const j=await r.json();
   if(j.status==='error')throw new Error(j.message);
