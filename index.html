@@ -1059,9 +1059,9 @@ async function fetchTF(iv,sz=55){
         const el=document.getElementById('mt5Status');
         if(el)el.textContent='MT5 ✓';
         return d.candles.map(c=>({
-          open:c.o,high:c.h,low:c.l,close:c.c,
-          time:c.t*1000,volume:c.v||0
-        }));
+          open:+c.o,high:+c.h,low:+c.l,close:+c.c,
+          time:(+c.t)*1000,volume:+(c.v||0)
+        })).filter(c=>c.open>0&&c.high>0&&c.low>0&&c.close>0);
       }
     }catch(e){console.log('MT5 data unavailable, using Twelve Data');}
   }
