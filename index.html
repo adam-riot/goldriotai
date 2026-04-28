@@ -1841,6 +1841,62 @@ async function loadHistoryFromCloud(){
   return false;
 }
 
+// Load auto vision from Worker (EA screenshot analysis)
+async function loadAutoVision(){
+  const workerUrl=localStorage.getItem('workerUrl');
+  if(!workerUrl)return;
+  try{
+    const symMap={'XAU/USD':'XAUUSD','XAG/USD':'XAGUSD','BTC/USD':'BTCUSD','EUR/USD':'EURUSD'};
+    const mt5Sym=symMap[S.sym]||'XAUUSD';
+    const r=await fetch(`${workerUrl}/vision/latest?symbol=${mt5Sym}`);
+    const d=await r.json();
+    if(!d.ok)return;
+    const ageMin=parseFloat(d.ageMinutes)||99;
+    if(ageMin>60)return; // Skip if older than 1 hour
+    // Show auto vision result in app
+    showAutoVisionBadge(d);
+    console.log('Auto Vision loaded:', d.signal, 'age:', ageMin, 'min');
+  }catch(e){
+    console.log('Auto Vision load error:', e.message);
+  }
+}
+
+function showAutoVisionBadge(v){
+  const col=v.trend==='Bullish'?'var(--up)':v.trend==='Bearish'?'var(--dn)':'var(--warn)';
+  const sigCol=v.signal==='Buy'?'var(--up)':v.signal==='Sell'?'var(--dn)':'var(--warn)';
+
+  // Show in vision section
+  document.getElementById('visionSec').style.display='block';
+  const existing=document.getElementById('autoVisionCard');
+  const card=existing||document.createElement('div');
+  card.id='autoVisionCard';
+  card.className='vision-card fade';
+  card.style.marginBottom='8px';
+  card.innerHTML=`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <span style="font-size:10px;padding:2px 8px;background:var(--infoBg);color:var(--blue);border:1px solid var(--infoBd);border-radius:5px">🤖 AUTO VISION</span>
+      <span style="font-size:10px;color:var(--fg4)">${v.ageMinutes} minit lepas</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <span style="font-size:13px;font-weight:600;color:${col}">${v.trend}</span>
+      <span style="font-size:11px;color:var(--fg3)">${v.confidence}%</span>
+      <span style="margin-left:auto;font-size:16px;font-weight:700;color:${sigCol}">${v.signal}</span>
+    </div>
+    <div class="row"><span class="rl">Entry</span><span class="rv" style="color:var(--gold)">${v.entry_zone||'N/A'}</span></div>
+    <div class="row"><span class="rl">SL</span><span class="rv" style="color:var(--dn)">${v.stop_loss||'N/A'}</span></div>
+    <div class="row"><span class="rl">TP1</span><span class="rv" style="color:var(--up)">${v.target_1||'N/A'}</span></div>
+    <div class="row"><span class="rl">RR</span><span class="rv" style="color:var(--gold)">${v.rr_ratio||'N/A'}</span></div>
+    <p class="analysis-text" style="margin-top:8px">${v.chart_analysis||''}</p>
+    ${v.invalidation?`<div style="font-size:10px;color:var(--warn);margin-top:6px">❌ ${v.invalidation}</div>`:''}
+    <div style="font-size:9px;color:var(--fg4);margin-top:6px">MT5 Auto Screenshot • ${new Date(v.time).toLocaleString('ms-MY')}</div>`;
+
+  if(!existing){
+    const visionCard=document.getElementById('visionCard');
+    if(visionCard)visionCard.before(card);
+    else document.getElementById('visionSec').appendChild(card);
+  }
+}
+
 // Auto-sync after every new signal
 function autoSync(){
   setTimeout(()=>syncHistoryToCloud(), 2000);
@@ -2502,6 +2558,7 @@ if('Notification'in window&&Notification.permission==='granted')S.notif=true;
     await loadHistoryFromCloud(); // Load saved history from cloud
     handleRefresh();
     setTimeout(fetchCalendar,5000);
+    setTimeout(loadAutoVision,8000); // Load auto vision result
   }, 500);
 
   // Auto-sync to cloud every 10 minit
