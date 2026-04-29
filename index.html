@@ -2403,10 +2403,10 @@ function renderUnifiedSignal(u){
   const dirColor=u.dir==='Bullish'?'var(--up)':'var(--dn)';
   const confColor=u.confidence>=75?'var(--up)':u.confidence>=60?'var(--warn)':'var(--dn)';
 
-  const sourceBadges=`
-    ${u.sources.engine?'<span style="font-size:9px;padding:2px 6px;background:var(--infoBg);color:var(--blue);border:1px solid var(--infoBd);border-radius:4px">Engine</span>':''}
-    ${u.sources.autoVision?'<span style="font-size:9px;padding:2px 6px;background:var(--upBg);color:var(--up);border:1px solid var(--upBd);border-radius:4px">AutoVision</span>':u.sources.vision?'<span style="font-size:9px;padding:2px 6px;background:var(--upBg);color:var(--up);border:1px solid var(--upBd);border-radius:4px">Vision</span>':''}
-  `;
+  let sourceBadges='';
+  if(u.sources.engine)sourceBadges+='<span style="font-size:9px;padding:2px 6px;background:var(--infoBg);color:var(--blue);border:1px solid var(--infoBd);border-radius:4px">Engine</span> ';
+  if(u.sources.autoVision)sourceBadges+='<span style="font-size:9px;padding:2px 6px;background:var(--upBg);color:var(--up);border:1px solid var(--upBd);border-radius:4px">AutoVision</span>';
+  else if(u.sources.vision)sourceBadges+='<span style="font-size:9px;padding:2px 6px;background:var(--upBg);color:var(--up);border:1px solid var(--upBd);border-radius:4px">Vision</span>';
 
   const smcHtml=u.smcReasons?.length?`
     <div style="background:var(--bg);border:1px solid var(--b1);border-radius:8px;padding:8px;margin:8px 0">
@@ -2711,10 +2711,7 @@ function closeSig(sig,result,closeP){
   const consecutiveLoss=recent.every(h=>h.result==='loss')?recent.length:0;
   if(consecutiveLoss>=3&&!S.pauseUntil){
     S.pauseUntil=Date.now()+2*60*60*1000; // Pause 2 hours
-    const msg='⚠️ *DRAWDOWN PROTECTION*
-
-3 loss berturut-turut. Signal dipause selama 2 jam.
-Resume: '+new Date(S.pauseUntil).toLocaleTimeString('ms-MY');
+    const msg='[PAUSE] DRAWDOWN: 3 loss berturut-turut. Signal dipause 2 jam. Resume: '+new Date(S.pauseUntil).toLocaleTimeString('ms-MY');
     const tgToken=localStorage.getItem('tgBotToken');
     const tgChat=localStorage.getItem('tgChatId');
     if(tgToken&&tgChat)fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:tgChat,text:msg,parse_mode:'Markdown'})});
@@ -2757,7 +2754,7 @@ let hasHighImpactSoon = false;
 // ============================================================
 // NEWS SENTIMENT ANALYSIS
 // ============================================================
-async function fetchSentiment(){
+async async function fetchSentiment(){
   try{
     // Fetch gold news headlines
     const r=await fetch('https://api.rss2json.com/v1/api.json?rss_url='+
@@ -2766,8 +2763,7 @@ async function fetchSentiment(){
     const d=await r.json();
     if(!d.items?.length)return;
 
-    const headlines=d.items.slice(0,8).map(i=>i.title).join('
-');
+    const headlines=d.items.slice(0,8).map(i=>i.title).join('\n');
 
     // Ask Claude to score sentiment
     const res=await callClaude([{role:'user',content:
