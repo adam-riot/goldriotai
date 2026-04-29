@@ -2788,7 +2788,7 @@ function renderWR(){
     const gc=grade==='A'?'var(--up)':grade==='B'?'var(--warn)':'var(--dn)';
     return '<tr><td style="color:'+tcol(h.dir||h.direction)+'">'+(h.dir||h.direction||'').slice(0,4)+'</td><td>'+(h.price?.toFixed(2)||'--')+'</td><td>'+(h.confidence||'--')+'%</td><td style="color:'+gc+'">'+grade+'</td><td>'+(h.status==='active'?'<span style="color:var(--info)">Active</span>':h.result==='win'?'<span style="color:var(--up)">Win</span>':h.result==='loss'?'<span style="color:var(--dn)">Loss</span>':'—')+'</td></tr>';
   }).join('');
-
+}
 
 // ========== CSV ==========
 function exportCSV(){const rows=[['Symbol','Dir','Entry','SL','TP1','RR','Conf','MTF','Zone','Status','Result','Time']];S.hist.forEach(h=>rows.push([h.symbol,h.dir||h.direction,h.price,h.sl,h.tp1,h.rr,h.confidence,h.mtf||'',h.zone?.src||'',h.status,h.result||'',new Date(h.time).toLocaleString('ms-MY')]));const b=new Blob([rows.map(r=>r.join(',')).join('\n')],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`xauai_${new Date().toISOString().slice(0,10)}.csv`;a.click()}
