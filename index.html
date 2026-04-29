@@ -358,9 +358,19 @@ td{font-size:11px;color:var(--fg2);padding:8px 4px;border-top:1px solid var(--b1
       <div id="visionCard"></div>
     </div>
 
-    <!-- SIGNAL -->
+    <!-- UNIFIED SIGNAL -->
     <div class="sec">
-      <div class="sec-head"><div class="sec-dot"></div><div class="sec-title">SIGNAL</div></div>
+      <div class="sec-head">
+        <div class="sec-dot" style="background:var(--gold)"></div>
+        <div class="sec-title">MASTER SIGNAL</div>
+        <span id="gradeTag" style="margin-left:auto;font-size:9px;padding:2px 8px;border-radius:5px;font-weight:700;display:none"></span>
+      </div>
+      <div id="unifiedSignalCard" style="display:none;margin-bottom:8px"></div>
+    </div>
+
+    <!-- ENGINE SIGNAL -->
+    <div class="sec">
+      <div class="sec-head"><div class="sec-dot"></div><div class="sec-title">ENGINE SIGNAL</div></div>
       <div id="sigCard"><div class="ld-wrap"><div class="ld-spin"></div><span class="ld-text">Fetching 1H + 15m data...</span></div></div>
     </div>
 
@@ -380,6 +390,12 @@ td{font-size:11px;color:var(--fg2);padding:8px 4px;border-top:1px solid var(--b1
     <div class="sec" id="indSec" style="display:none">
       <div class="sec-head"><div class="sec-dot"></div><div class="sec-title">INDICATORS</div></div>
       <div class="card"><div class="ind-grid" id="indGrid"></div></div>
+    </div>
+
+    <!-- SENTIMENT -->
+    <div class="sec" id="sentimentSec">
+      <div class="sec-head"><div class="sec-dot" style="background:var(--info)"></div><div class="sec-title">NEWS SENTIMENT</div></div>
+      <div class="card" id="sentimentCard" style="display:none"></div>
     </div>
 
     <!-- HISTORY -->
@@ -570,6 +586,8 @@ const S={
   entryMonitor:null, // active entry zone monitor
   entryNotified:false, // prevent duplicate notifications
   workerUrl:localStorage.getItem('workerUrl')||'', // Cloudflare Worker URL
+  pauseUntil:null, // Drawdown protection pause timestamp
+  sentiment:null, // Latest news sentiment
   mlUrl:localStorage.getItem('mlUrl')||'https://web-production-86bfc.up.railway.app', // ML API URL
   vCnt:+localStorage.getItem('v5')||0,
   apiCnt:0,apiTime:0,livePrice:null,
@@ -654,6 +672,229 @@ function findSwingPoints(candles,lookback=10){
     if(l[i]<l[i-1]&&l[i]<l[i-2]&&l[i]<l[i+1]&&l[i]<l[i+2])lastSwingLow=l[i];
   }
   return{swingHigh:lastSwingHigh,swingLow:lastSwingLow};
+}
+
+// ============================================================
+// SMC — Smart Money Concepts Engine
+// ============================================================
+
+// Order Block Detection
+function detectOrderBlocks(candles){
+  const obs=[];
+  const n=candles.length;
+  if(n<10)return obs;
+
+  for(let i=2;i<n-2;i++){
+    const c=candles[i];
+    const body=Math.abs(c.close-c.open);
+    const atr=calcATR(candles.slice(Math.max(0,i-14),i+1).map(x=>x.high),
+                      candles.slice(Math.max(0,i-14),i+1).map(x=>x.low),
+                      candles.slice(Math.max(0,i-14),i+1).map(x=>x.close));
+
+    // Bearish OB: bullish candle before strong bearish move
+    if(c.close>c.open && body>atr*0.5){
+      // Check if next candles break down
+      let breakDown=false;
+      for(let j=i+1;j<Math.min(i+5,n);j++){
+        if(candles[j].close<c.low){breakDown=true;break;}
+      }
+      if(breakDown){
+        obs.push({
+          type:'Bearish OB',
+          top:c.high, bottom:c.open,
+          mid:(c.high+c.open)/2,
+          idx:i, mitigated:false,
+          strength:body/atr>1.5?'Strong':'Normal'
+        });
+      }
+    }
+
+    // Bullish OB: bearish candle before strong bullish move
+    if(c.close<c.open && body>atr*0.5){
+      let breakUp=false;
+      for(let j=i+1;j<Math.min(i+5,n);j++){
+        if(candles[j].close>c.high){breakUp=true;break;}
+      }
+      if(breakUp){
+        obs.push({
+          type:'Bullish OB',
+          top:c.close, bottom:c.low,
+          mid:(c.close+c.low)/2,
+          idx:i, mitigated:false,
+          strength:body/atr>1.5?'Strong':'Normal'
+        });
+      }
+    }
+  }
+
+  // Check mitigation — OB mitigated if price returns to it
+  const curPrice=candles[n-1].close;
+  return obs.slice(-10).map(ob=>{
+    ob.mitigated=ob.type==='Bearish OB'?curPrice>=ob.bottom:curPrice<=ob.top;
+    ob.distPips=Math.abs(curPrice-ob.mid);
+    return ob;
+  });
+}
+
+// Fair Value Gap Detection
+function detectFVG(candles){
+  const fvgs=[];
+  const n=candles.length;
+  if(n<3)return fvgs;
+
+  for(let i=1;i<n-1;i++){
+    const prev=candles[i-1];
+    const cur=candles[i];
+    const next=candles[i+1];
+
+    // Bullish FVG: gap between prev high and next low
+    if(next.low>prev.high){
+      fvgs.push({
+        type:'Bullish FVG',
+        top:next.low, bottom:prev.high,
+        mid:(next.low+prev.high)/2,
+        idx:i, filled:false,
+        size:next.low-prev.high
+      });
+    }
+
+    // Bearish FVG: gap between next high and prev low
+    if(next.high<prev.low){
+      fvgs.push({
+        type:'Bearish FVG',
+        top:prev.low, bottom:next.high,
+        mid:(prev.low+next.high)/2,
+        idx:i, filled:false,
+        size:prev.low-next.high
+      });
+    }
+  }
+
+  // Check if filled
+  const curPrice=candles[n-1].close;
+  return fvgs.slice(-15).map(fvg=>{
+    fvg.filled=(fvg.type==='Bullish FVG'&&curPrice<=fvg.bottom)||
+               (fvg.type==='Bearish FVG'&&curPrice>=fvg.top);
+    fvg.distPips=Math.abs(curPrice-fvg.mid);
+    return fvg;
+  });
+}
+
+// Liquidity Zones (Equal Highs/Lows)
+function detectLiquidity(candles,atr){
+  const n=candles.length;
+  const liq=[];
+  const threshold=atr*0.3;
+
+  for(let i=5;i<n-5;i++){
+    // Equal Highs — buy side liquidity
+    for(let j=i+3;j<Math.min(i+30,n-2);j++){
+      if(Math.abs(candles[i].high-candles[j].high)<threshold){
+        liq.push({
+          type:'Buy Side Liq',
+          price:(candles[i].high+candles[j].high)/2,
+          idx1:i,idx2:j,swept:false
+        });
+        break;
+      }
+    }
+    // Equal Lows — sell side liquidity
+    for(let j=i+3;j<Math.min(i+30,n-2);j++){
+      if(Math.abs(candles[i].low-candles[j].low)<threshold){
+        liq.push({
+          type:'Sell Side Liq',
+          price:(candles[i].low+candles[j].low)/2,
+          idx1:i,idx2:j,swept:false
+        });
+        break;
+      }
+    }
+  }
+
+  const curPrice=candles[n-1].close;
+  return liq.slice(-10).map(l=>{
+    l.swept=l.type==='Buy Side Liq'?curPrice>l.price:curPrice<l.price;
+    l.distPips=Math.abs(curPrice-l.price);
+    return l;
+  });
+}
+
+// Premium/Discount Zones
+function getPremiumDiscount(swingHigh,swingLow,curPrice){
+  if(!swingHigh||!swingLow)return{zone:'Unknown',pct:50};
+  const range=swingHigh-swingLow;
+  if(range<=0)return{zone:'Unknown',pct:50};
+  const pct=((curPrice-swingLow)/range)*100;
+  return{
+    zone:pct>75?'Premium (Sell zone)':pct<25?'Discount (Buy zone)':'Equilibrium',
+    pct:+pct.toFixed(1),
+    eq:(swingHigh+swingLow)/2
+  };
+}
+
+// Full SMC Analysis
+function detectSMC(candles){
+  if(!candles||candles.length<20)return{obs:[],fvgs:[],liq:[],pd:{zone:'Unknown',pct:50}};
+
+  const h=candles.map(c=>c.high),l=candles.map(c=>c.low),cl=candles.map(c=>c.close);
+  const atr=calcATR(h,l,cl);
+  const swing=findSwingPoints(candles,10);
+
+  const obs=detectOrderBlocks(candles);
+  const fvgs=detectFVG(candles);
+  const liq=detectLiquidity(candles,atr);
+  const pd=getPremiumDiscount(swing.swingHigh,swing.swingLow,cl[cl.length-1]);
+
+  return{obs,fvgs,liq,pd,atr};
+}
+
+// SMC Signal Score — how well does SMC confirm direction?
+function smcScore(smc,dir,price){
+  let score=0;
+  const reasons=[];
+
+  // Order Block near price
+  const nearOB=smc.obs?.filter(ob=>ob.distPips<20&&!ob.mitigated)||[];
+  const alignedOB=nearOB.filter(ob=>
+    (dir==='Bullish'&&ob.type==='Bullish OB')||
+    (dir==='Bearish'&&ob.type==='Bearish OB')
+  );
+  if(alignedOB.length){
+    score+=3;
+    reasons.push(`${alignedOB[0].strength} ${alignedOB[0].type} kat ${alignedOB[0].mid?.toFixed(2)}`);
+  }
+
+  // FVG nearby
+  const nearFVG=smc.fvgs?.filter(fvg=>fvg.distPips<15&&!fvg.filled)||[];
+  const alignedFVG=nearFVG.filter(fvg=>
+    (dir==='Bullish'&&fvg.type==='Bullish FVG')||
+    (dir==='Bearish'&&fvg.type==='Bearish FVG')
+  );
+  if(alignedFVG.length){
+    score+=2;
+    reasons.push(`FVG ${alignedFVG[0].type} size ${alignedFVG[0].size?.toFixed(2)}`);
+  }
+
+  // Liquidity swept in direction
+  const sweptLiq=smc.liq?.filter(l=>l.swept)||[];
+  const recentSwept=sweptLiq.filter(l=>
+    (dir==='Bullish'&&l.type==='Sell Side Liq')||
+    (dir==='Bearish'&&l.type==='Buy Side Liq')
+  );
+  if(recentSwept.length){
+    score+=2;
+    reasons.push(`Liquidity swept @ ${recentSwept[0].price?.toFixed(2)}`);
+  }
+
+  // Premium/Discount alignment
+  const pd=smc.pd;
+  if(pd){
+    if(dir==='Bullish'&&pd.zone.includes('Discount')){score+=2;reasons.push('Price dalam Discount zone');}
+    else if(dir==='Bearish'&&pd.zone.includes('Premium')){score+=2;reasons.push('Price dalam Premium zone');}
+    else if(pd.zone==='Equilibrium'){score+=1;reasons.push('Price kat Equilibrium');}
+  }
+
+  return{score,maxScore:9,reasons,grade:score>=7?'A':score>=4?'B':'C'};
 }
 
 // ============================================================
@@ -766,7 +1007,7 @@ function calcMACD(d){const e12=ema(d,12),e26=ema(d,26);const ml=e12.map((v,i)=>v
 function calcBB(d,p=20){const sm=sma(d,p);return sm.map((m,i)=>{if(m==null)return{u:null,m:null,l:null};const sl=d.slice(i-p+1,i+1),st=Math.sqrt(sl.reduce((s,v)=>s+(v-m)**2,0)/p);return{u:m+2*st,m,l:m-2*st}})}
 function calcATR(h,l,c,p=14){const tr=c.map((v,i)=>i===0?h[i]-l[i]:Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1])));if(tr.length<p)return tr.reduce((a,b)=>a+b)/tr.length;let a=tr.slice(0,p).reduce((x,y)=>x+y)/p;for(let i=p+1;i<tr.length;i++)a=(a*(p-1)+tr[i])/p;return a}
 function stochRSI(rs,p=14){return rs.map((v,i)=>{if(v==null||i<p)return null;const sl=rs.slice(i-p+1,i+1).filter(x=>x!=null);if(sl.length<p)return null;const mn=Math.min(...sl),mx=Math.max(...sl);return mx===mn?0:(v-mn)/(mx-mn)})}
-function computeInd(candles){const c=candles.map(x=>x.close),h=candles.map(x=>x.high),l=candles.map(x=>x.low);const n=c.length-1;const e50=ema(c,50),e200=ema(c,200),s20=sma(c,20);const rs=calcRSI(c),mc=calcMACD(c),bo=calcBB(c),at=calcATR(h,l,c),sr=stochRSI(rs);const adx=calcADX(h,l,c);const vol=calcVolumeScore(candles);const swing=findSwingPoints(candles);const bos=detectBOS(candles);return{close:c[n],open:c[0],ema50:e50[n],ema200:e200[n],sma20:s20[n],rsi:rs[n],macd:mc,bb:bo[n],atr:at,stochRsi:sr[n],adx,vol,swing,bos,highs:h,lows:l,closes:c}}
+function computeInd(candles){const c=candles.map(x=>x.close),h=candles.map(x=>x.high),l=candles.map(x=>x.low);const n=c.length-1;const e50=ema(c,50),e200=ema(c,200),s20=sma(c,20);const rs=calcRSI(c),mc=calcMACD(c),bo=calcBB(c),at=calcATR(h,l,c),sr=stochRSI(rs);const adx=calcADX(h,l,c);const vol=calcVolumeScore(candles);const swing=findSwingPoints(candles);const bos=detectBOS(candles);const smc=detectSMC(candles);return{close:c[n],open:c[0],ema50:e50[n],ema200:e200[n],sma20:s20[n],rsi:rs[n],macd:mc,bb:bo[n],atr:at,stochRsi:sr[n],adx,vol,swing,bos,smc,highs:h,lows:l,closes:c}}
 function biasScore(ind){
   if(!ind||!ind.ema50||!ind.ema200)return{dir:'Neutral',b:0,br:0,trending:false};
   let b=0,br=0;
@@ -852,6 +1093,14 @@ return p}
 // ========== SIGNAL GATE (RELAXED) ==========
 function evaluate(b1h,b15m,ind,zones,at,bs1h,bs15m){
   const reasons=[],checks={};
+
+  // ── DRAWDOWN PAUSE CHECK ────────────────────────────────────
+  if(S.pauseUntil&&Date.now()<S.pauseUntil){
+    const resumeIn=Math.round((S.pauseUntil-Date.now())/60000);
+    return{ok:false,reason:`⚠ Drawdown protection aktif — resume dalam ${resumeIn} minit`,checks,reasons};
+  }else if(S.pauseUntil&&Date.now()>=S.pauseUntil){
+    S.pauseUntil=null; // Resume
+  }
 
   // ── ACTIVE SIGNAL LOCK ──────────────────────────────────────
   if(S.active&&S.active.status==='active'){
@@ -944,17 +1193,27 @@ function evaluate(b1h,b15m,ind,zones,at,bs1h,bs15m){
   }else checks.volume=true;
 
   // ── 8. SESSION — ALL SESSIONS (24/7) ───────────────────────
-  checks.session=true; // All sessions active
+  checks.session=true;
+
+  // ── 9. SMC CONFIRMATION ──────────────────────────────────────
+  const smcData=ind.smc||{};
+  const smcResult=smcScore(smcData,dir,ind.close);
+  checks.smc=smcResult.grade!=='C'; // Block if SMC completely disagrees
+  if(!checks.smc){
+    reasons.push(`SMC score ${smcResult.score}/9 (Grade C) — tiada OB/FVG/Liq confirmation`);
+  }
 
   // ── FINAL GATE ────────────────────────────────────────────────
   const zone=zoneAt(ind.close,zones,at);
   const failedChecks=Object.entries(checks).filter(([k,v])=>!v);
   if(failedChecks.length>0){
     const mainReason=reasons[0]||`${failedChecks.length} syarat gagal: ${failedChecks.map(([k])=>k).join(', ')}`;
-    return{ok:false,reason:mainReason,checks,reasons,dir,bScore,brScore};
+    return{ok:false,reason:mainReason,checks,reasons,dir,bScore,brScore,smcResult};
   }
 
-  return{ok:true,dir,zone,checks,reasons,bScore,brScore};
+  // Signal Grade based on SMC
+  const grade=smcResult.grade; // A, B, or C
+  return{ok:true,dir,zone,checks,reasons,bScore,brScore,smcResult,grade};
 }
 function sltp(price,dir,zones,at,ind){
   let sl,tp1,tp2;
@@ -1095,6 +1354,8 @@ Market Structure:${ind.bos?.structure||'Unknown'}
 BOS:${ind.bos?.bos?ind.bos.bos.desc:'Tiada'} CHoCH:${ind.bos?.choch?ind.bos.choch.desc:'Tiada'}
 Recent BOS:${ind.bos?.recentBOS?.slice(0,2).map(b=>b.desc).join(' | ')||'Tiada'}
 MTF: 1H=${b1h}, 15m=${b15m} | Direction confirmed: ${d}
+SMC OB: ${ind.smc?.obs?.filter(o=>!o.mitigated).length||0} active | FVG: ${ind.smc?.fvgs?.filter(f=>!f.filled).length||0} unfilled
+Zone: ${ind.smc?.pd?.zone||'Unknown'} ${ind.smc?.pd?.pct||50}%
 
 Analisa keseluruhan 50 candle structure. Balas JSON sahaja:
 {"trend":"${d}","confidence":50-95,"analysis":"3-5 ayat BM — terangkan struktur 50 candle, EMA, ADX strength, kenapa bias ${d}","signal":"Buy|Sell|Neutral","entry_reason":"1 ayat ringkas"}`;
@@ -2033,11 +2294,162 @@ function renderVision(r,tfList){
 
   // Save vision result for follow-up
   S.lastVision={...r,tfList,time:new Date(),combinedScore,engineAgrees};
+  // Update master signal with vision
+  if(!S.masterSignal)S.masterSignal={engine:null,vision:null,autoVision:null,unified:null};
+  S.masterSignal.vision={...r,time:new Date()};
+  updateMasterSignal();
   document.getElementById('followupBtn').style.display='block';
   // Auto-start entry monitor if signal is not Wait
   if(r.signal!=='Wait'&&r.entry_zone){
     startEntryMonitor(r);
   }
+}
+
+// ============================================================
+// UNIFIED SIGNAL SYSTEM
+// ============================================================
+
+// Master signal state
+if(!S.masterSignal)S.masterSignal={
+  engine:null,    // Engine signal
+  vision:null,    // Manual vision
+  autoVision:null, // Auto vision
+  unified:null,   // Final merged signal
+  grade:'C',
+  lastUpdate:null
+};
+
+function updateMasterSignal(){
+  const e=S.masterSignal.engine;
+  const v=S.masterSignal.autoVision||S.masterSignal.vision; // Auto takes priority
+
+  if(!e&&!v)return null;
+
+  // Score each source
+  let score=0;
+  let totalWeight=0;
+  let dir=null;
+  let confidence=0;
+
+  // Engine weight: 40%
+  if(e){
+    const eScore=(e.confidence||60)/100;
+    const eDir=e.dir==='Bullish'?1:-1;
+    score+=eScore*0.4*eDir;
+    totalWeight+=0.4;
+    confidence+=e.confidence*0.4;
+  }
+
+  // Vision weight: 60%
+  if(v){
+    const vScore=(v.confidence||60)/100;
+    const vDir=v.trend==='Bullish'?1:v.trend==='Bearish'?-1:0;
+    score+=vScore*0.6*vDir;
+    totalWeight+=0.6;
+    confidence+=v.confidence*0.6;
+  }
+
+  if(totalWeight===0)return null;
+
+  // Determine direction
+  const normScore=score/totalWeight;
+  if(normScore>0.2)dir='Bullish';
+  else if(normScore<-0.2)dir='Bearish';
+  else dir='Neutral';
+
+  // Conflict check
+  const conflict=e&&v&&(
+    (e.dir==='Bullish'&&v.trend==='Bearish')||
+    (e.dir==='Bearish'&&v.trend==='Bullish')
+  );
+
+  if(conflict){
+    // Engine and vision disagree — reduce confidence, show warning
+    confidence=Math.max(40,confidence*0.7);
+  }
+
+  // SMC grade from engine
+  const smcGrade=e?.smcGrade||'B';
+  const finalGrade=conflict?'C':smcGrade;
+
+  // Use vision SL/TP if available (more precise), else engine
+  const sl=v?.stop_loss||e?.sl;
+  const tp1=v?.target_1||e?.tp1;
+  const tp2=v?.target_2||e?.tp2;
+  const entryZone=v?.entry_zone||null;
+
+  const unified={
+    dir,confidence:Math.round(confidence),
+    sl,tp1,tp2,entryZone,
+    grade:finalGrade,
+    conflict,
+    sources:{engine:!!e,vision:!!v,autoVision:!!S.masterSignal.autoVision},
+    smcReasons:e?.smcReasons||[],
+    analysis:v?.chart_analysis||e?.analysis||'',
+    signal:dir==='Bullish'?'Buy':dir==='Bearish'?'Sell':'Wait',
+    time:new Date()
+  };
+
+  S.masterSignal.unified=unified;
+  S.masterSignal.grade=finalGrade;
+  renderUnifiedSignal(unified);
+  return unified;
+}
+
+function renderUnifiedSignal(u){
+  if(!u||u.dir==='Neutral')return;
+
+  const gradeColor=u.grade==='A'?'var(--up)':u.grade==='B'?'var(--warn)':'var(--dn)';
+  const dirColor=u.dir==='Bullish'?'var(--up)':'var(--dn)';
+  const confColor=u.confidence>=75?'var(--up)':u.confidence>=60?'var(--warn)':'var(--dn)';
+
+  const sourceBadges=`
+    ${u.sources.engine?'<span style="font-size:9px;padding:2px 6px;background:var(--infoBg);color:var(--blue);border:1px solid var(--infoBd);border-radius:4px">Engine</span>':''}
+    ${u.sources.autoVision?'<span style="font-size:9px;padding:2px 6px;background:var(--upBg);color:var(--up);border:1px solid var(--upBd);border-radius:4px">AutoVision</span>':u.sources.vision?'<span style="font-size:9px;padding:2px 6px;background:var(--upBg);color:var(--up);border:1px solid var(--upBd);border-radius:4px">Vision</span>':''}
+  `;
+
+  const smcHtml=u.smcReasons?.length?`
+    <div style="background:var(--bg);border:1px solid var(--b1);border-radius:8px;padding:8px;margin:8px 0">
+      <div style="font-size:9px;color:var(--fg4);margin-bottom:4px;letter-spacing:.5px">SMC CONFLUENCE</div>
+      ${u.smcReasons.map(r=>`<div style="font-size:10px;color:var(--fg2)">✓ ${r}</div>`).join('')}
+    </div>`:'';
+
+  const el=document.getElementById('unifiedSignalCard');
+  if(!el)return;
+  el.style.display='block';
+  el.innerHTML=`
+    <div style="background:${u.dir==='Bullish'?'linear-gradient(145deg,#0d1e14,var(--s2))':'linear-gradient(145deg,#1e0d0d,var(--s2))'};border:1px solid ${u.dir==='Bullish'?'var(--upBd)':'var(--dnBd)'};border-radius:14px;padding:16px">
+
+      <!-- Header -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+        <span style="font-size:11px;font-weight:700;padding:3px 10px;background:${gradeColor};color:#000;border-radius:6px">Grade ${u.grade}</span>
+        <span style="font-size:15px;font-weight:700;color:${dirColor}">${u.dir==='Bullish'?'▲ BUY':'▼ SELL'}</span>
+        ${u.conflict?'<span style="font-size:9px;color:var(--warn);border:1px solid var(--warnBd);padding:2px 6px;border-radius:4px">⚠ Conflict</span>':''}
+        <div style="margin-left:auto;display:flex;gap:4px;flex-wrap:wrap">${sourceBadges}</div>
+      </div>
+
+      <!-- Confidence -->
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="font-size:28px;font-weight:700;color:${confColor}">${u.confidence}%</div>
+        <div>
+          <div style="font-size:9px;color:var(--fg4);letter-spacing:.5px">COMBINED CONFIDENCE</div>
+          <div style="font-size:10px;color:var(--fg3)">${u.conflict?'⚠ Engine & Vision conflict':'All sources aligned'}</div>
+        </div>
+      </div>
+
+      <!-- Levels -->
+      ${u.entryZone?`<div style="background:var(--upBg);border:1px solid var(--upBd);border-radius:7px;padding:7px 10px;margin-bottom:6px;font-size:11px;color:var(--up)">📍 Entry: ${u.entryZone}</div>`:''}
+      <div class="row"><span class="rl">Stop Loss</span><span class="rv" style="color:var(--dn)">${u.sl||'N/A'}</span></div>
+      <div class="row"><span class="rl">Target 1</span><span class="rv" style="color:var(--up)">${u.tp1||'N/A'}</span></div>
+      <div class="row"><span class="rl">Target 2</span><span class="rv" style="color:var(--up)">${u.tp2||'N/A'}</span></div>
+
+      ${smcHtml}
+
+      <!-- Analysis -->
+      ${u.analysis?`<p style="font-size:11px;color:var(--fg2);line-height:1.6;margin-top:8px">${u.analysis.slice(0,200)}${u.analysis.length>200?'...':''}</p>`:''}
+
+      <div style="font-size:9px;color:var(--fg4);margin-top:8px">${new Date(u.time).toLocaleTimeString('ms-MY')}</div>
+    </div>`;
 }
 
 // ========== MAIN ==========
@@ -2065,12 +2477,13 @@ async function handleRefresh(){
       if(sig.dir==='Bullish'){if(price>=sig.tp1)closeSig(sig,'win',price);else if(price<=sig.sl)closeSig(sig,'loss',price);}
       else{if(price<=sig.tp1)closeSig(sig,'win',price);else if(price>=sig.sl)closeSig(sig,'loss',price);}
     }
-    // Auto-close if signal > 4 hours old (cleanup — give enough time for TP/SL)
+    // Signal expiry — auto close if too old or price moved too far
     if(S.active&&S.active.status==='active'){
-      const ageMin=(Date.now()-new Date(S.active.time).getTime())/60000;
-      if(ageMin>240){
-        // Check if profitable before closing
-        const sig=S.active;
+      const sig=S.active;
+      const ageMin=(Date.now()-new Date(sig.time).getTime())/60000;
+      const deviation=Math.abs(price-sig.price);
+      const atrVal=i15m?.atr||7;
+      if(ageMin>240||(deviation>atrVal*3&&ageMin>30)){
         const isProfitable=sig.dir==='Bullish'?price>sig.price:price<sig.price;
         closeSig(sig,isProfitable?'win':'loss',price);
       }
@@ -2119,6 +2532,10 @@ const entry={...ai,...st,dir:gate.dir,direction:gate.dir,price,zone:gate.zone,mt
       sendN(`🎯 ${gate.dir}!`,`${S.label} @ ${price.toFixed(2)} | TP:${st.tp1} SL:${st.sl}`);
       sendSignalToTelegram(entry);
       autoSync(); // Sync to cloud
+      // Update master signal
+      if(!S.masterSignal)S.masterSignal={engine:null,vision:null,autoVision:null,unified:null};
+      S.masterSignal.engine={...entry,smcGrade:gate.grade||'B',smcReasons:gate.smcResult?.reasons||[]};
+      updateMasterSignal();
       renderSigCard(entry,patterns);
     }
     renderSNR(zones,price,i15m.atr);renderInd(i15m);renderHist();renderWR();
@@ -2281,7 +2698,29 @@ document.getElementById('indGrid').innerHTML=items.map(i=>`<div class="ind-box">
 function renderHist(){if(!S.hist.length){showEl('histSec',false);return}showEl('histSec',true);
 document.getElementById('histBody').innerHTML=S.hist.slice(0,15).map(h=>`<tr><td style="color:${tcol(h.dir||h.direction)}">${(h.dir||h.direction||'').slice(0,4)}</td><td>${h.price?.toFixed(2)||'--'}</td><td style="color:var(--up)">${h.tp1?.toFixed(2)||'--'}</td><td style="color:var(--dn)">${h.sl?.toFixed(2)||'--'}</td><td style="color:var(--gold)">${h.rr||'--'}</td><td>${h.status==='active'?'<span style="color:var(--info)">Active</span>':h.result==='win'?'<span style="color:var(--up)">Win✓</span>':h.result==='loss'?'<span style="color:var(--dn)">Loss✗</span>':'—'}</td></tr>`).join('')}
 
-function closeSig(sig,result,closeP){sig.status='closed';sig.result=result;sig.closePrice=closeP;S.active=null;const i=S.hist.findIndex(h=>h.id===sig.id);if(i>=0)S.hist[i]=sig;saveH();renderHist();renderWR();sendN(`Signal ${result==='win'?'WIN ✓':'LOSS ✗'}`,`${sig.symbol} @ ${closeP}`);autoSync();
+function closeSig(sig,result,closeP){
+  sig.status='closed';sig.result=result;sig.closePrice=closeP;S.active=null;
+  const i=S.hist.findIndex(h=>h.id===sig.id);
+  if(i>=0)S.hist[i]=sig;
+  saveH();renderHist();renderWR();
+  sendN(`Signal ${result==='win'?'WIN ✓':'LOSS ✗'}`,`${sig.symbol} @ ${closeP}`);
+  autoSync();
+
+  // Drawdown protection — pause after 3 consecutive losses
+  const recent=S.hist.filter(h=>h.status==='closed').slice(0,5);
+  const consecutiveLoss=recent.every(h=>h.result==='loss')?recent.length:0;
+  if(consecutiveLoss>=3&&!S.pauseUntil){
+    S.pauseUntil=Date.now()+2*60*60*1000; // Pause 2 hours
+    const msg='⚠️ *DRAWDOWN PROTECTION*
+
+3 loss berturut-turut. Signal dipause selama 2 jam.
+Resume: '+new Date(S.pauseUntil).toLocaleTimeString('ms-MY');
+    const tgToken=localStorage.getItem('tgBotToken');
+    const tgChat=localStorage.getItem('tgChatId');
+    if(tgToken&&tgChat)fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:tgChat,text:msg,parse_mode:'Markdown'})});
+    console.log('Drawdown protection activated — paused 2 hours');
+  }
+}
 }
 function saveH(){localStorage.setItem('h5',JSON.stringify(S.hist))}
 
@@ -2314,6 +2753,60 @@ function sendN(title,body){if(!S.notif)return;if('serviceWorker'in navigator)nav
 // ========== ECONOMIC CALENDAR ==========
 let calendarEvents = [];
 let hasHighImpactSoon = false;
+
+// ============================================================
+// NEWS SENTIMENT ANALYSIS
+// ============================================================
+async function fetchSentiment(){
+  try{
+    // Fetch gold news headlines
+    const r=await fetch('https://api.rss2json.com/v1/api.json?rss_url='+
+      encodeURIComponent('https://feeds.finance.yahoo.com/rss/2.0/headline?s=GC=F&region=US&lang=en-US')+
+      '&api_key=public&count=10');
+    const d=await r.json();
+    if(!d.items?.length)return;
+
+    const headlines=d.items.slice(0,8).map(i=>i.title).join('
+');
+
+    // Ask Claude to score sentiment
+    const res=await callClaude([{role:'user',content:
+      `Analisa sentiment gold/XAUUSD dari headlines ni dan bagi score.
+
+Headlines:
+${headlines}
+
+Balas JSON sahaja:
+{"score":-10 to 10,"sentiment":"Bullish|Bearish|Neutral","reasons":["reason1","reason2"],"key_factor":"faktor utama"}`
+    }],300);
+
+    const raw=res.content?.[0]?.text||'{}';
+    const m=raw.match(/\{[\s\S]*\}/);
+    const sentiment=m?JSON.parse(m[0]):{score:0,sentiment:'Neutral'};
+    S.sentiment=sentiment;
+    renderSentiment(sentiment);
+  }catch(e){
+    console.log('Sentiment fetch error:',e.message);
+  }
+}
+
+function renderSentiment(s){
+  if(!s)return;
+  const col=s.score>2?'var(--up)':s.score<-2?'var(--dn)':'var(--warn)';
+  const el=document.getElementById('sentimentCard');
+  if(!el)return;
+  el.style.display='block';
+  el.innerHTML=`
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <div style="font-size:22px;font-weight:700;color:${col}">${s.score>0?'+':''}${s.score}</div>
+      <div>
+        <div style="font-size:12px;font-weight:600;color:${col}">${s.sentiment}</div>
+        <div style="font-size:10px;color:var(--fg3)">News Sentiment Score (-10 to +10)</div>
+      </div>
+    </div>
+    ${s.key_factor?`<div style="font-size:11px;color:var(--fg2);margin-bottom:4px">🔑 ${s.key_factor}</div>`:''}
+    ${s.reasons?.slice(0,2).map(r=>`<div style="font-size:10px;color:var(--fg3)">• ${r}</div>`).join('')||''}`;
+}
 
 async function fetchCalendar() {
   const calCard = document.getElementById('calCard');
@@ -2539,7 +3032,8 @@ function loadSetUI(){document.getElementById('minSlider').value=S.prefs.minConf|
 setInterval(async()=>{if(S.loading)return;try{const p=await fetchPrice();S.lastPriceTick=Date.now();S.livePrice=p;document.getElementById('pcPrice').textContent='$'+p.toFixed(2);checkEntryZone(p);if(S.ind){const ch=p-S.ind.open,pc=(ch/S.ind.open*100).toFixed(2);document.getElementById('pcChg').innerHTML=`<span style="color:${ch>=0?'var(--up)':'var(--dn)'}">${ch>=0?'+':''}${ch.toFixed(2)} (${pc}%)</span>`}checkAlerts(p);
 if(S.active?.status==='active'){const sig=S.active;if(sig.dir==='Bullish'){if(p>=sig.tp1)closeSig(sig,'win',p);else if(p<=sig.sl)closeSig(sig,'loss',p)}else{if(p<=sig.tp1)closeSig(sig,'win',p);else if(p>=sig.sl)closeSig(sig,'loss',p)}}}catch{}},5000); // 60s tick
 
-setInterval(handleRefresh,15*60*1000); // Every 15 min = timer-based signal like reference system
+setInterval(handleRefresh,15*60*1000); // Every 15 min
+setInterval(fetchSentiment,60*60*1000); // Sentiment hourly
 setInterval(updateSession,60000);
 
 // ========== SW ==========
@@ -2559,6 +3053,7 @@ if('Notification'in window&&Notification.permission==='granted')S.notif=true;
     handleRefresh();
     setTimeout(fetchCalendar,5000);
     setTimeout(loadAutoVision,8000); // Load auto vision result
+    setTimeout(fetchSentiment,12000); // News sentiment
   }, 500);
 
   // Auto-sync to cloud every 10 minit
