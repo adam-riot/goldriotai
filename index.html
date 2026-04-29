@@ -2753,7 +2753,7 @@ let hasHighImpactSoon = false;
 // ============================================================
 // NEWS SENTIMENT ANALYSIS
 // ============================================================
-async async function fetchSentiment(){
+async function fetchSentiment(){
   try{
     // Fetch gold news headlines
     const r=await fetch('https://api.rss2json.com/v1/api.json?rss_url='+
