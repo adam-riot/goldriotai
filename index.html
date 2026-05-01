@@ -610,6 +610,8 @@ const S={
   entryNotified:false, // prevent duplicate notifications
   workerUrl:localStorage.getItem('workerUrl')||'', // Cloudflare Worker URL
   pauseUntil:null, // Drawdown protection pause timestamp
+  lastTgSent:null, // Last Telegram signal sent timestamp
+  lastTgDir:null,  // Last Telegram signal direction
   highImpactSoon:false, // High impact news within 30 min
   sentiment:null, // Latest news sentiment
   mlUrl:localStorage.getItem('mlUrl')||'https://web-production-86bfc.up.railway.app', // ML API URL
@@ -2143,9 +2145,42 @@ async function loadAutoVision(){
     if(!d.ok)return;
     const ageMin=parseFloat(d.ageMinutes)||99;
     if(ageMin>60)return; // Skip if older than 1 hour
-    // Show auto vision result in app
+
+    // Hook auto vision into master signal system
+    if(!S.masterSignal)S.masterSignal={engine:null,vision:null,autoVision:null,unified:null};
+
+    // Check if auto vision is fresher than manual vision
+    const manualAge=S.lastVision?((Date.now()-new Date(S.lastVision.time).getTime())/60000):999;
+    const autoIsFreher=ageMin<manualAge;
+
+    // Auto vision replaces manual vision if fresher
+    S.masterSignal.autoVision={
+      trend:d.trend||'Neutral',
+      signal:d.signal||'Wait',
+      confidence:d.confidence||60,
+      chart_analysis:d.chart_analysis||'',
+      entry_zone:d.entry_zone||'',
+      stop_loss:d.stop_loss||'',
+      target_1:d.target_1||'',
+      target_2:d.target_2||'',
+      rr_ratio:d.rr_ratio||'',
+      invalidation:d.invalidation||'',
+      time:new Date(d.time||Date.now()),
+      source:'AutoVision',
+      ageMinutes:ageMin
+    };
+
+    // If auto vision fresher than manual — use it as primary vision
+    if(autoIsFreher){
+      S.masterSignal.vision=S.masterSignal.autoVision;
+    }
+
+    // Update master signal
+    updateMasterSignal();
+
+    // Show auto vision badge in app
     showAutoVisionBadge(d);
-    console.log('Auto Vision loaded:', d.signal, 'age:', ageMin, 'min');
+    console.log('Auto Vision loaded:', d.signal, 'age:', ageMin, 'min', autoIsFreher?'(replacing manual)':'');
   }catch(e){
     console.log('Auto Vision load error:', e.message);
   }
@@ -2185,6 +2220,77 @@ function showAutoVisionBadge(v){
     if(visionCard)visionCard.before(card);
     else document.getElementById('visionSec').appendChild(card);
   }
+}
+
+// ============================================================
+// UNIFIED TELEGRAM — Single alert from Master Signal
+// ============================================================
+function sendUnifiedTelegram(unified){
+  const tgToken=localStorage.getItem('tgBotToken');
+  const tgChat=localStorage.getItem('tgChatId');
+  if(!tgToken||!tgChat)return;
+  if(!unified||unified.dir==='Neutral'||unified.signal==='Wait')return;
+
+  // Cooldown — don't send same direction within 30 minutes
+  const now=Date.now();
+  const cooldown=30*60*1000; // 30 min
+  if(S.lastTgSent&&S.lastTgDir===unified.dir&&(now-S.lastTgSent)<cooldown){
+    console.log('Telegram cooldown active — skip duplicate signal');
+    return;
+  }
+
+  // Block if conflict
+  if(unified.conflict){
+    // Send conflict warning instead
+    const warnMsg='[!] SIGNAL CONFLICT - Engine dan Vision tidak sepakat untuk '+S.label+'. Tunggu confirmation. XAUAI Master Signal';
+    fetch('https://api.telegram.org/bot'+tgToken+'/sendMessage',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({chat_id:tgChat,text:warnMsg,parse_mode:'Markdown'})
+    }).catch(()=>{});
+    return;
+  }
+
+  // Build sources string
+  const sources=[];
+  if(unified.sources?.engine)sources.push('Engine');
+  if(unified.sources?.autoVision)sources.push('AutoVision');
+  else if(unified.sources?.vision)sources.push('Vision');
+  const sourceStr=sources.join(' + ');
+
+  const isBuy=unified.dir==='Bullish';
+  const gradeEmoji=unified.grade==='A'?'🏆':unified.grade==='B'?'⭐':'📊';
+  const emoji=isBuy?'🟢':'🔴';
+
+  const nl='\n';
+  const msgLines=[
+    emoji+' *'+(isBuy?'BUY':'SELL')+' - '+S.label+'*',
+    '',
+    gradeEmoji+' *Grade '+unified.grade+'* | Confidence: '+unified.confidence+'%',
+    'Sources: '+sourceStr,
+    '',
+    unified.entryZone?'Entry: '+unified.entryZone:'',
+    unified.sl?'SL: '+unified.sl:'',
+    unified.tp1?'TP1: '+unified.tp1:'',
+    unified.tp2?'TP2: '+unified.tp2:'',
+    '',
+    unified.smcReasons?.length?'SMC: '+unified.smcReasons.slice(0,2).join(' | '):'',
+    unified.analysis?unified.analysis.slice(0,150):'',
+    '',
+    new Date().toLocaleString('ms-MY'),
+    'XAUAI Master Signal'
+  ].filter(l=>l!==undefined);
+  const msg=msgLines.join(nl);
+
+  fetch('https://api.telegram.org/bot'+tgToken+'/sendMessage',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({chat_id:tgChat,text:msg,parse_mode:'Markdown'})
+  }).then(r=>r.json()).then(d=>{
+    if(d.ok){
+      S.lastTgSent=now;
+      S.lastTgDir=unified.dir;
+      console.log('Unified Telegram sent: Grade '+unified.grade+' '+unified.dir);
+    }
+  }).catch(()=>{});
 }
 
 // Auto-sync after every new signal
@@ -2326,7 +2432,7 @@ function renderVision(r,tfList){
   // Update master signal with vision
   if(!S.masterSignal)S.masterSignal={engine:null,vision:null,autoVision:null,unified:null};
   S.masterSignal.vision={...r,time:new Date()};
-  updateMasterSignal();
+  updateMasterSignal(); // This will send unified Telegram
   document.getElementById('followupBtn').style.display='block';
   // Auto-start entry monitor if signal is not Wait
   if(r.signal!=='Wait'&&r.entry_zone){
@@ -2422,6 +2528,12 @@ function updateMasterSignal(){
   S.masterSignal.unified=unified;
   S.masterSignal.grade=finalGrade;
   renderUnifiedSignal(unified);
+
+  // Send unified Telegram alert
+  if(unified.signal==='Buy'||unified.signal==='Sell'){
+    sendUnifiedTelegram(unified);
+  }
+
   return unified;
 }
 
@@ -2559,7 +2671,7 @@ async function handleRefresh(){
 const entry={...ai,...st,dir:gate.dir,direction:gate.dir,price,zone:gate.zone,mtf:`1H:${b1h} 15m:${b15m}`,time:new Date(),symbol:S.label,status:'active',id:Date.now(),result:null,visionUsed:false,bosInfo};
       S.active=entry;S.hist.unshift(entry);if(S.hist.length>100)S.hist=S.hist.slice(0,100);saveH();
       sendN(`🎯 ${gate.dir}!`,`${S.label} @ ${price.toFixed(2)} | TP:${st.tp1} SL:${st.sl}`);
-      sendSignalToTelegram(entry);
+      // Don't send individual Telegram — unified Telegram handles it
       autoSync(); // Sync to cloud
       // Update master signal
       if(!S.masterSignal)S.masterSignal={engine:null,vision:null,autoVision:null,unified:null};
@@ -3088,6 +3200,7 @@ if(S.active?.status==='active'){const sig=S.active;if(sig.dir==='Bullish'){if(p>
 
 setInterval(handleRefresh,15*60*1000); // Every 15 min
 setInterval(fetchSentiment,60*60*1000); // Sentiment hourly
+setInterval(loadAutoVision,15*60*1000); // Reload auto vision every 15 min
 setInterval(updateSession,60000);
 
 // ========== SW ==========
