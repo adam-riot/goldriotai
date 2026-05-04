@@ -873,6 +873,165 @@ function detectSMC(candles){
   return{obs,fvgs,liq,pd,atr};
 }
 
+// ============================================================
+// FIBONACCI OTE (Optimal Trade Entry)
+// ============================================================
+function calcFibOTE(candles){
+  const n=candles.length;
+  if(n<20)return null;
+
+  // Find recent swing high and low (last 50 candles)
+  const slice=candles.slice(-50);
+  const highs=slice.map(c=>c.high);
+  const lows=slice.map(c=>c.low);
+
+  const swingHigh=Math.max(...highs);
+  const swingLow=Math.min(...lows);
+  const range=swingHigh-swingLow;
+  if(range<=0)return null;
+
+  const cur=candles[n-1].close;
+
+  // Fibonacci levels
+  const fib = {
+    f236: +(swingHigh - range*0.236).toFixed(2),
+    f382: +(swingHigh - range*0.382).toFixed(2),
+    f500: +(swingHigh - range*0.500).toFixed(2),
+    f618: +(swingHigh - range*0.618).toFixed(2),
+    f705: +(swingHigh - range*0.705).toFixed(2),
+    f786: +(swingHigh - range*0.786).toFixed(2),
+    swingHigh, swingLow
+  };
+
+  // OTE zone: 61.8% - 78.6% retracement
+  const oteHigh=fib.f618;
+  const oteLow=fib.f786;
+  const inOTE=cur>=oteLow&&cur<=oteHigh;
+
+  // Check direction
+  // Bullish OTE: price retracing down into 61.8-78.6% (buy zone)
+  // Bearish OTE: price retracing up into 61.8-78.6% (sell zone)
+  const bullishOTE=cur<=oteHigh&&cur>=oteLow; // price in discount retracement
+  const bearishOTE=cur>=swingHigh-range*0.236&&cur<=swingHigh-range*0; // price in premium
+
+  return{
+    ...fib,
+    oteHigh, oteLow,
+    inOTE,
+    bullishOTE,
+    bearishOTE,
+    curPct:+((swingHigh-cur)/range*100).toFixed(1)
+  };
+}
+
+// ============================================================
+// PREVIOUS DAY HIGH/LOW
+// ============================================================
+function calcPrevDayHL(candles){
+  if(!candles||candles.length<48)return null;
+
+  // Group candles by day
+  const days={};
+  for(const c of candles){
+    const d=new Date(c.time);
+    const key=`${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`;
+    if(!days[key])days[key]={high:-Infinity,low:Infinity,candles:[]};
+    days[key].high=Math.max(days[key].high,c.high);
+    days[key].low=Math.min(days[key].low,c.low);
+    days[key].candles.push(c);
+  }
+
+  const dayKeys=Object.keys(days).sort();
+  if(dayKeys.length<2)return null;
+
+  // Previous day
+  const prevKey=dayKeys[dayKeys.length-2];
+  const todayKey=dayKeys[dayKeys.length-1];
+  const prev=days[prevKey];
+  const today=days[todayKey];
+
+  const curPrice=candles[candles.length-1].close;
+  const atr=calcATR(candles.map(c=>c.high),candles.map(c=>c.low),candles.map(c=>c.close));
+
+  // Check if price swept PDH or PDL
+  const sweptPDH=today.high>prev.high;
+  const sweptPDL=today.low<prev.low;
+
+  // Price proximity to PDH/PDL
+  const nearPDH=Math.abs(curPrice-prev.high)<atr*0.5;
+  const nearPDL=Math.abs(curPrice-prev.low)<atr*0.5;
+
+  return{
+    pdHigh:+prev.high.toFixed(2),
+    pdLow:+prev.low.toFixed(2),
+    tdHigh:+today.high.toFixed(2),
+    tdLow:+today.low.toFixed(2),
+    sweptPDH, sweptPDL,
+    nearPDH, nearPDL,
+    // After sweep, price likely reverses
+    bullishSetup: sweptPDL&&curPrice>prev.low, // swept low then reversed up
+    bearishSetup: sweptPDH&&curPrice<prev.high, // swept high then reversed down
+  };
+}
+
+// ============================================================
+// DISPLACEMENT CANDLE
+// ============================================================
+function detectDisplacement(candles){
+  if(!candles||candles.length<10)return null;
+
+  const n=candles.length;
+  const atr=calcATR(
+    candles.map(c=>c.high),
+    candles.map(c=>c.low),
+    candles.map(c=>c.close)
+  );
+
+  const results=[];
+
+  // Check last 10 candles for displacement
+  for(let i=Math.max(1,n-10);i<n;i++){
+    const c=candles[i];
+    const body=Math.abs(c.close-c.open);
+    const range=c.high-c.low;
+    const wickRatio=range>0?(range-body)/range:1;
+
+    // Displacement: large body (>1.5 ATR), small wicks (<30% of range)
+    if(body>atr*1.5&&wickRatio<0.3){
+      const isBull=c.close>c.open;
+      const midpoint=+(( c.open+c.close)/2).toFixed(2);
+      results.push({
+        type:isBull?'Bullish':'Bearish',
+        open:c.open,close:c.close,
+        high:c.high,low:c.low,
+        midpoint,
+        body:+body.toFixed(2),
+        atrRatio:+(body/atr).toFixed(1),
+        barsAgo:n-1-i,
+        time:c.time
+      });
+    }
+  }
+
+  if(!results.length)return null;
+
+  // Most recent displacement
+  const latest=results[results.length-1];
+  const curPrice=candles[n-1].close;
+
+  // Entry: price returns to 50% of displacement candle
+  const atMidpoint=Math.abs(curPrice-latest.midpoint)<atr*0.5;
+
+  return{
+    ...latest,
+    atMidpoint,
+    curPrice,
+    // Setup: displacement happened, now wait for retracement to midpoint
+    bullishSetup:latest.type==='Bullish'&&curPrice<=latest.midpoint,
+    bearishSetup:latest.type==='Bearish'&&curPrice>=latest.midpoint,
+  };
+}
+
 // SMC Signal Score — how well does SMC confirm direction?
 function smcScore(smc,dir,price){
   let score=0;
@@ -919,7 +1078,62 @@ function smcScore(smc,dir,price){
     else if(pd.zone==='Equilibrium'){score+=1;reasons.push('Price kat Equilibrium');}
   }
 
+  // Fibonacci OTE bonus
+  // Access via ind.fib in evaluate
   return{score,maxScore:9,reasons,grade:score>=7?'A':score>=4?'B':'C'};
+}
+
+// Combined confluence score including new features
+function confluenceScore(ind, dir){
+  let score=0;
+  const reasons=[];
+
+  // SMC base score
+  const smcResult=smcScore(ind.smc||{},dir,ind.close);
+  score+=smcResult.score;
+  reasons.push(...smcResult.reasons);
+
+  // Fibonacci OTE
+  const fib=ind.fib;
+  if(fib){
+    if(dir==='Bullish'&&fib.bullishOTE){
+      score+=3;reasons.push('Price dalam OTE zone ('+fib.curPct+'% retracement)');
+    }else if(dir==='Bearish'&&fib.bearishOTE){
+      score+=3;reasons.push('Price dalam Premium zone');
+    }else if(fib.inOTE){
+      score+=1;reasons.push('Price dekat OTE level');
+    }
+  }
+
+  // Previous Day High/Low
+  const pdhl=ind.pdhl;
+  if(pdhl){
+    if(dir==='Bullish'&&pdhl.bullishSetup){
+      score+=3;reasons.push('PDL swept ('+pdhl.pdLow+') — bullish reversal setup');
+    }else if(dir==='Bearish'&&pdhl.bearishSetup){
+      score+=3;reasons.push('PDH swept ('+pdhl.pdHigh+') — bearish reversal setup');
+    }else if(dir==='Bullish'&&pdhl.nearPDL){
+      score+=1;reasons.push('Price dekat PDL ('+pdhl.pdLow+')');
+    }else if(dir==='Bearish'&&pdhl.nearPDH){
+      score+=1;reasons.push('Price dekat PDH ('+pdhl.pdHigh+')');
+    }
+  }
+
+  // Displacement candle
+  const disp=ind.disp;
+  if(disp){
+    if(dir==='Bullish'&&disp.bullishSetup){
+      score+=2;reasons.push('Bullish displacement ('+disp.atrRatio+'x ATR), pullback ke midpoint '+disp.midpoint);
+    }else if(dir==='Bearish'&&disp.bearishSetup){
+      score+=2;reasons.push('Bearish displacement ('+disp.atrRatio+'x ATR), pullback ke midpoint '+disp.midpoint);
+    }else if(disp.atMidpoint){
+      score+=1;reasons.push('Price kat displacement midpoint '+disp.midpoint);
+    }
+  }
+
+  const maxScore=9+3+3+2; // SMC + Fib + PDHL + Disp
+  const grade=score>=12?'A':score>=7?'B':'C';
+  return{score,maxScore,reasons,grade,smcGrade:smcResult.grade};
 }
 
 // ============================================================
@@ -1032,7 +1246,7 @@ function calcMACD(d){const e12=ema(d,12),e26=ema(d,26);const ml=e12.map((v,i)=>v
 function calcBB(d,p=20){const sm=sma(d,p);return sm.map((m,i)=>{if(m==null)return{u:null,m:null,l:null};const sl=d.slice(i-p+1,i+1),st=Math.sqrt(sl.reduce((s,v)=>s+(v-m)**2,0)/p);return{u:m+2*st,m,l:m-2*st}})}
 function calcATR(h,l,c,p=14){const tr=c.map((v,i)=>i===0?h[i]-l[i]:Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1])));if(tr.length<p)return tr.reduce((a,b)=>a+b)/tr.length;let a=tr.slice(0,p).reduce((x,y)=>x+y)/p;for(let i=p+1;i<tr.length;i++)a=(a*(p-1)+tr[i])/p;return a}
 function stochRSI(rs,p=14){return rs.map((v,i)=>{if(v==null||i<p)return null;const sl=rs.slice(i-p+1,i+1).filter(x=>x!=null);if(sl.length<p)return null;const mn=Math.min(...sl),mx=Math.max(...sl);return mx===mn?0:(v-mn)/(mx-mn)})}
-function computeInd(candles){const c=candles.map(x=>x.close),h=candles.map(x=>x.high),l=candles.map(x=>x.low);const n=c.length-1;const e50=ema(c,50),e200=ema(c,200),s20=sma(c,20);const rs=calcRSI(c),mc=calcMACD(c),bo=calcBB(c),at=calcATR(h,l,c),sr=stochRSI(rs);const adx=calcADX(h,l,c);const vol=calcVolumeScore(candles);const swing=findSwingPoints(candles);const bos=detectBOS(candles);const smc=detectSMC(candles);return{close:c[n],open:c[0],ema50:e50[n],ema200:e200[n],sma20:s20[n],rsi:rs[n],macd:mc,bb:bo[n],atr:at,stochRsi:sr[n],adx,vol,swing,bos,smc,highs:h,lows:l,closes:c}}
+function computeInd(candles){const c=candles.map(x=>x.close),h=candles.map(x=>x.high),l=candles.map(x=>x.low);const n=c.length-1;const e50=ema(c,50),e200=ema(c,200),s20=sma(c,20);const rs=calcRSI(c),mc=calcMACD(c),bo=calcBB(c),at=calcATR(h,l,c),sr=stochRSI(rs);const adx=calcADX(h,l,c);const vol=calcVolumeScore(candles);const swing=findSwingPoints(candles);const bos=detectBOS(candles);const smc=detectSMC(candles);const fib=calcFibOTE(candles);const pdhl=calcPrevDayHL(candles);const disp=detectDisplacement(candles);return{close:c[n],open:c[0],ema50:e50[n],ema200:e200[n],sma20:s20[n],rsi:rs[n],macd:mc,bb:bo[n],atr:at,stochRsi:sr[n],adx,vol,swing,bos,smc,fib,pdhl,disp,highs:h,lows:l,closes:c}}
 function biasScore(ind){
   if(!ind||!ind.ema50||!ind.ema200)return{dir:'Neutral',b:0,br:0,trending:false};
   let b=0,br=0;
@@ -1167,32 +1381,41 @@ function evaluate(b1h,b15m,ind,zones,at,bs1h,bs15m){
     reasons.push(`Bias score ${dominantScore}/18 terlalu lemah (perlukan ≥6) — conviction rendah`);
   }else checks.bias=true;
 
-  // ── 3. ADX — MESTI TRENDING ──────────────────────────────────
-  const adxVal=ind.adx?.adx||0;
-  if(adxVal<20){
-    checks.adx=false;
-    reasons.push(`ADX ${adxVal.toFixed(1)} — market ranging (<20). Skip semasa sideways.`);
-  }else checks.adx=true;
-
-  // ── 4. RSI — AVOID EXTREME & WRONG SIDE ─────────────────────
+  // ── 3-5. SCORING SYSTEM (ADX, RSI, MACD) ────────────────────
+  // No longer hard blocks — contribute to confidence score
+  let softScore=0; // bonus confidence
+  const adxVal=Math.min(100,ind.adx?.adx||0);
   const rsi=ind.rsi||50;
-  if(dir==='Bullish'){
-    if(rsi>75){checks.rsi=false;reasons.push(`RSI ${rsi.toFixed(0)} overbought — jangan buy tinggi`);}
-    else if(rsi<40){checks.rsi=false;reasons.push(`RSI ${rsi.toFixed(0)} oversold untuk bull — momentum lemah`);}
-    else checks.rsi=true;
-  }else{
-    if(rsi<25){checks.rsi=false;reasons.push(`RSI ${rsi.toFixed(0)} oversold — jangan sell rendah`);}
-    else if(rsi>60){checks.rsi=false;reasons.push(`RSI ${rsi.toFixed(0)} masih tinggi untuk bear — momentum lemah`);}
-    else checks.rsi=true;
-  }
-
-  // ── 5. MACD CONFIRMATION ─────────────────────────────────────
   const macdHist=ind.macd?.hist||0;
-  const macdOk=(dir==='Bullish'&&macdHist>0)||(dir==='Bearish'&&macdHist<0);
-  if(!macdOk){
-    checks.macd=false;
-    reasons.push(`MACD histogram ${macdHist.toFixed(4)} berlawanan dengan ${dir} — momentum tak confirm`);
-  }else checks.macd=true;
+
+  // ADX scoring (trending = bonus, ranging = slight penalty)
+  if(adxVal>=25){softScore+=3;}
+  else if(adxVal>=18){softScore+=1;}
+  else{softScore-=1;reasons.push(`ADX ${adxVal.toFixed(1)} lemah — ranging market, extra caution`);}
+  checks.adx=true; // Never hard block
+
+  // RSI scoring
+  if(dir==='Bullish'){
+    if(rsi>=40&&rsi<=65){softScore+=2;}
+    else if(rsi>65&&rsi<=75){softScore+=1;}
+    else if(rsi>75){softScore-=2;reasons.push(`RSI ${rsi.toFixed(0)} overbought — reduced confidence`);}
+    else if(rsi<40){softScore-=1;reasons.push(`RSI ${rsi.toFixed(0)} lemah untuk bull`);}
+  }else{
+    if(rsi>=35&&rsi<=60){softScore+=2;}
+    else if(rsi>=25&&rsi<35){softScore+=1;}
+    else if(rsi<25){softScore-=2;reasons.push(`RSI ${rsi.toFixed(0)} oversold — reduced confidence`);}
+    else if(rsi>60){softScore-=1;reasons.push(`RSI ${rsi.toFixed(0)} tinggi untuk bear`);}
+  }
+  checks.rsi=true; // Never hard block
+
+  // MACD scoring
+  if((dir==='Bullish'&&macdHist>0)||(dir==='Bearish'&&macdHist<0)){
+    softScore+=2;
+  }else{
+    softScore-=1;
+    reasons.push(`MACD conflict — reduced confidence`);
+  }
+  checks.macd=true; // Never hard block
 
   // ── 6. BOS/STRUCTURE CONFIRMATION ───────────────────────────
   const bosData=ind.bos||{};
@@ -1225,12 +1448,11 @@ function evaluate(b1h,b15m,ind,zones,at,bs1h,bs15m){
   // ── 8. SESSION — ALL SESSIONS (24/7) ───────────────────────
   checks.session=true;
 
-  // ── 9. SMC CONFIRMATION ──────────────────────────────────────
-  const smcData=ind.smc||{};
-  const smcResult=smcScore(smcData,dir,ind.close);
-  checks.smc=smcResult.grade!=='C'; // Block if SMC completely disagrees
+  // ── 9. CONFLUENCE SCORE (SMC + Fib + PDHL + Displacement) ───
+  const confResult=confluenceScore(ind,dir);
+  checks.smc=confResult.grade!=='C';
   if(!checks.smc){
-    reasons.push(`SMC score ${smcResult.score}/9 (Grade C) — tiada OB/FVG/Liq confirmation`);
+    reasons.push('Confluence Grade C — tiada OB/FVG/OTE/PDHL confirmation');
   }
 
   // ── FINAL GATE ────────────────────────────────────────────────
@@ -1238,12 +1460,13 @@ function evaluate(b1h,b15m,ind,zones,at,bs1h,bs15m){
   const failedChecks=Object.entries(checks).filter(([k,v])=>!v);
   if(failedChecks.length>0){
     const mainReason=reasons[0]||`${failedChecks.length} syarat gagal: ${failedChecks.map(([k])=>k).join(', ')}`;
-    return{ok:false,reason:mainReason,checks,reasons,dir,bScore,brScore,smcResult};
+    return{ok:false,reason:mainReason,checks,reasons,dir,bScore,brScore,confResult,softScore};
   }
 
-  // Signal Grade based on SMC
-  const grade=smcResult.grade; // A, B, or C
-  return{ok:true,dir,zone,checks,reasons,bScore,brScore,smcResult,grade};
+  // Final grade from confluence
+  const grade=confResult.grade;
+  // Adjust confidence based on softScore
+  return{ok:true,dir,zone,checks,reasons,bScore,brScore,confResult,grade,softScore};
 }
 function sltp(price,dir,zones,at,ind){
   let sl,tp1,tp2;
@@ -1404,6 +1627,9 @@ Recent BOS:${ind.bos?.recentBOS?.slice(0,2).map(b=>b.desc).join(' | ')||'Tiada'}
 MTF: 1H=${b1h}, 15m=${b15m} | Direction confirmed: ${d}
 SMC OB: ${ind.smc?.obs?.filter(o=>!o.mitigated).length||0} active | FVG: ${ind.smc?.fvgs?.filter(f=>!f.filled).length||0} unfilled
 Zone: ${ind.smc?.pd?.zone||'Unknown'} ${ind.smc?.pd?.pct||50}%
+Fibonacci OTE: ${ind.fib?('Zone '+ind.fib.oteHigh+'-'+ind.fib.oteLow+' | Price at '+ind.fib.curPct+'%'):'N/A'}
+PDH/PDL: ${ind.pdhl?('PDH '+ind.pdhl.pdHigh+' PDL '+ind.pdhl.pdLow+(ind.pdhl.sweptPDH?' [PDH SWEPT]':ind.pdhl.sweptPDL?' [PDL SWEPT]':'')):'N/A'}
+Displacement: ${ind.disp?(ind.disp.type+' '+ind.disp.atrRatio+'x ATR, midpoint '+ind.disp.midpoint+(ind.disp.atMidpoint?' [AT MIDPOINT]':'')):'None'}
 
 Analisa keseluruhan 50 candle structure. Balas JSON sahaja:
 {"trend":"${d}","confidence":50-95,"analysis":"3-5 ayat BM — terangkan struktur 50 candle, EMA, ADX strength, kenapa bias ${d}","signal":"Buy|Sell|Neutral","entry_reason":"1 ayat ringkas"}`;
@@ -2768,6 +2994,10 @@ async function handleRefresh(){
   desc:i15m.bos?.recentBOS?.[0]?.desc||i15m.bos?.bos?.desc||''
 };
 const entry={...ai,...st,dir:gate.dir,direction:gate.dir,price,zone:gate.zone,mtf:`1H:${b1h} 15m:${b15m}`,time:new Date(),symbol:S.label,status:'active',id:Date.now(),result:null,visionUsed:false,bosInfo};
+      // Adjust confidence with softScore
+      if(gate.softScore!==undefined){
+        ai.confidence=Math.min(95,Math.max(40,ai.confidence+(gate.softScore*2)));
+      }
       S.active=entry;S.hist.unshift(entry);if(S.hist.length>100)S.hist=S.hist.slice(0,100);saveH();
       sendN(`🎯 ${gate.dir}!`,`${S.label} @ ${price.toFixed(2)} | TP:${st.tp1} SL:${st.sl}`);
       // Don't send individual Telegram — unified Telegram handles it
@@ -2932,6 +3162,9 @@ const items=[
   {l:'VOL',v:volV,c:volC},
   {l:'SRSI',v:ind.stochRsi!=null?(ind.stochRsi*100).toFixed(0):'--',c:'var(--fg2)'},
     {l:'ML',v:mlV,c:mlC},
+  {l:'OTE',v:ind.fib?ind.fib.curPct+'%':'--',c:ind.fib?.inOTE?'var(--up)':'var(--fg3)'},
+  {l:'PDH',v:ind.pdhl?ind.pdhl.pdHigh:'--',c:ind.pdhl?.nearPDH?'var(--dn)':'var(--fg3)'},
+  {l:'PDL',v:ind.pdhl?ind.pdhl.pdLow:'--',c:ind.pdhl?.nearPDL?'var(--up)':'var(--fg3)'},
 ];
 document.getElementById('indGrid').innerHTML=items.map(i=>`<div class="ind-box"><div class="ind-lbl">${i.l}</div><div class="ind-val" style="color:${i.c}">${i.v||'--'}</div></div>`).join('')}
 
